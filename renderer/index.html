@@ -1,46 +1,161 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Prism</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' blob:; worker-src blob:; font-src 'self'">
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="../node_modules/monaco-editor/min/vs/editor/editor.main.css">
-</head><body>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Antigravity IDE v2</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:11434; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' blob:; worker-src blob:; font-src 'self'">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../node_modules/monaco-editor/min/vs/editor/editor.main.css">
+</head>
+<body>
 <header id="top">
-  <div class="brand"><span class="logo">◈</span> Prism</div>
+  <div class="brand">
+    <span class="logo">◈</span>
+    <span>ANTIGRAVITY</span>
+    <span class="badge-version">v2.0</span>
+  </div>
+
   <div class="actions">
-    <button id="open" class="btn">Open Folder</button>
+    <button id="open" class="btn">📁 Open Folder</button>
     <input id="url" placeholder="Clone: https://github.com/user/repo.git">
     <button id="clone" class="btn">Clone</button>
   </div>
+
   <div class="spacer"></div>
-  <select id="provider"><option value="ollama">Local · Ollama</option><option value="gemini">Gemini API</option><option value="claude">Claude API</option></select>
+
+  <!-- Ollama Connection Status Badge -->
+  <div id="ollama-status-badge" class="status-pill checking" title="Click to open Ollama Manager">
+    <span class="dot"></span>
+    <span id="ollama-status-text">CHECKING OLLAMA...</span>
+  </div>
+
+  <select id="provider">
+    <option value="ollama">Local · Ollama</option>
+    <option value="gemini">Gemini API</option>
+    <option value="claude">Claude API</option>
+  </select>
+
   <select id="model"></select>
-  <button id="key" class="btn ghost" title="Set Anthropic API key">API Key</button>
+  <button id="key" class="btn ghost" title="Set API Key">API Key</button>
 </header>
+
 <main id="shell">
   <nav id="activity">
     <button class="act on" data-view="files" title="Explorer">🗂</button>
     <button class="act" data-view="search" title="Quick Open (Ctrl+P)">🔍</button>
+    <button class="act" id="btnOllama" title="Ollama Service Hub">⚡</button>
     <div class="spacer"></div>
-    <button class="act" id="togChat" title="Toggle AI panel (Ctrl+L)">✦</button>
+    <button class="act" id="togChat" title="Toggle AI Reasoning Drawer (Ctrl+L)">✦</button>
   </nav>
-  <aside id="side"><div class="pane-title" id="rootName">EXPLORER</div><div id="tree"></div></aside>
+
+  <aside id="side">
+    <div class="pane-title" id="rootName">WORKSPACE EXPLORER</div>
+    <div id="filter-wrap">
+      <input id="filter" placeholder="Filter files..." spellcheck="false">
+    </div>
+    <div id="tree"></div>
+  </aside>
+
   <div class="split v" id="s1"></div>
+
   <section id="center">
     <div id="tabs"></div>
     <div id="crumbs"></div>
-    <div id="editorWrap"><div id="editor"></div>
-      <div id="welcome"><div class="logo big">◈</div><h1>Prism</h1><p>AI-native code editor</p>
-        <ul><li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open</li><li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Commands</li><li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li><li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li><li><kbd>Ctrl</kbd>+<kbd>L</kbd> AI panel</li></ul></div></div>
+    <div id="editorWrap">
+      <div id="editor"></div>
+      <div id="welcome">
+        <div class="logo big">◈</div>
+        <h1>Antigravity IDE v2</h1>
+        <p style="color: var(--acc); font-weight: 500;">Next-Gen Cyberpunk Local AI Coding Workspace</p>
+        <ul>
+          <li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open file</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</li>
+          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save changes</li>
+          <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Workspace terminal</li>
+          <li><kbd>Ctrl</kbd>+<kbd>L</kbd> Agent reasoning drawer</li>
+        </ul>
+      </div>
+    </div>
     <div class="split h" id="s2"></div>
-    <div id="panel"><div class="pane-title">TERMINAL</div><pre id="termout"></pre>
-      <div class="prompt-row"><span id="ps">$</span><input id="cmd" spellcheck="false" placeholder="run a command…"></div></div>
+    <div id="panel">
+      <div class="pane-title">TERMINAL INSTANCE</div>
+      <pre id="termout"></pre>
+      <div class="prompt-row">
+        <span id="ps">$</span>
+        <input id="cmd" spellcheck="false" placeholder="run shell command...">
+      </div>
+    </div>
   </section>
+
   <div class="split v" id="s3"></div>
-  <aside id="chat"><div class="pane-title">✦ PRISM AGENT</div><div id="log"></div>
-    <div class="composer"><textarea id="prompt" rows="2" placeholder="Ask Prism to build, fix, explain…  (Enter to send)"></textarea></div></aside>
+
+  <aside id="chat">
+    <div class="pane-title">✦ AGENT REASONING KERNEL</div>
+    <div id="log"></div>
+    <div class="composer">
+      <textarea id="prompt" rows="3" placeholder="Ask Antigravity to write code, inspect, or refactor… (Enter to send)"></textarea>
+    </div>
+  </aside>
 </main>
-<footer id="status"><span id="branch">⎇ —</span><span id="fileinfo"></span><div class="spacer"></div><span id="lang"></span><span id="pos">Ln 1, Col 1</span><span id="prov"></span></footer>
-<div id="palette" hidden><input id="pin" spellcheck="false"><ul id="plist"></ul></div>
+
+<footer id="status">
+  <span id="branch">⎇ —</span>
+  <span id="fileinfo">No file open</span>
+  <div class="spacer"></div>
+  <span id="lang"></span>
+  <span id="pos">Ln 1, Col 1</span>
+  <span id="prov">Local model</span>
+</footer>
+
+<!-- Interactive Ollama Orchestration Modal Card -->
+<div id="ollama-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="color:var(--acc); font-size:16px;">⚡</span>
+        <strong style="color:#fff; font-size:13px; letter-spacing:0.5px;">OLLAMA LOCAL ORCHESTRATION</strong>
+      </div>
+      <button id="close-modal" class="btn ghost" style="padding:2px 8px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg3); padding:10px 14px; border-radius:8px; border:1px solid var(--line);">
+        <div>
+          <div style="font-weight:600; font-size:12px;">Endpoint: http://localhost:11434</div>
+          <div id="modal-status-text" style="color:var(--mut); font-size:11px; margin-top:2px;">Checking connection...</div>
+        </div>
+        <button id="btn-start-daemon" class="btn">Start Daemon</button>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button id="btn-install-ollama" class="btn primary" style="flex:1; padding:10px;">
+          📦 One-Click Auto Install Ollama
+        </button>
+      </div>
+
+      <div>
+        <div style="font-size:11px; color:var(--mut); margin-bottom:6px; font-weight:600;">RECOMMENDED MODELS:</div>
+        <div class="quick-models">
+          <button data-pull="qwen2.5-coder:7b">+ qwen2.5-coder:7b</button>
+          <button data-pull="llama3:8b">+ llama3:8b</button>
+          <button data-pull="deepseek-coder:6.7b">+ deepseek-coder:6.7b</button>
+          <button data-pull="codellama:7b">+ codellama:7b</button>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px; color:var(--mut); margin-bottom:4px; font-weight:600;">INSTALLATION / DAEMON LOGS:</div>
+        <pre id="modal-log" class="modal-terminal">Ready for automated operations.\n</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="palette" hidden>
+  <input id="pin" spellcheck="false" placeholder="Type a command or file name...">
+  <ul id="plist"></ul>
+</div>
+
 <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
 <script src="renderer.js"></script>
-</body></html>
+</body>
+</html>

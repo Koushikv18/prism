@@ -1,7 +1,7 @@
 {
-  "name": "prism",
-  "version": "0.1.0",
-  "description": "Prism: a personal AI coding IDE (agent + editor + terminal) for your own laptop",
+  "name": "antigravity-ide",
+  "version": "2.0.0",
+  "description": "Antigravity IDE v2: Hyper-Aesthetic Local AI IDE with One-Click Ollama Setup",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

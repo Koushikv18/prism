@@ -93,8 +93,16 @@ async function runClaude({ apiKey, messages, root, approve, emit, setRoot }) {
 const OLLAMA = process.env.OLLAMA_HOST || 'http://localhost:11434';
 
 async function listOllamaModels() {
-  const r = await fetch(OLLAMA + '/api/tags');
-  return ((await r.json()).models || []).map(m => m.name);
+  try {
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), 2500);
+    const r = await fetch(OLLAMA + '/api/tags', { signal: controller.signal });
+    clearTimeout(to);
+    if (!r.ok) return [];
+    return ((await r.json()).models || []).map(m => m.name);
+  } catch {
+    return [];
+  }
 }
 
 // Local, free, offline: talks to Ollama's /api/chat with tool calling.
