@@ -31,3 +31,15 @@ prism.onAgent(ev => {
   if (ev.type === 'file_changed') { refresh(); if (ev.path === current) openFile(current); }
 });
 $('prompt').onkeydown = async e => { if (e.key !== 'Enter') return; const t = e.target.value; e.target.value = ''; log('› ' + t, 'me'); const r = await prism.agent(t); if (r.error) log('Error: ' + r.error); refresh(); };
+
+async function loadModels() {
+  const s = await prism.getSettings(); $('provider').value = s.provider;
+  const sel = $('model'); sel.innerHTML = '';
+  const names = s.provider === 'ollama' ? await prism.models() : ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'];
+  if (!names.length) { sel.innerHTML = '<option>No models: run "ollama pull qwen2.5-coder:7b"</option>'; return; }
+  for (const n of names) sel.add(new Option(n, n));
+  if (!names.includes(s.model)) await prism.setSettings({ model: names[0] }); else sel.value = s.model;
+}
+$('provider').onchange = async e => { await prism.setSettings({ provider: e.target.value }); await loadModels(); };
+$('model').onchange = e => prism.setSettings({ model: e.target.value });
+loadModels();

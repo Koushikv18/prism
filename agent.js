@@ -43,7 +43,7 @@ async function runTool(name, input, ctx) {
   } catch (e) { return 'Error: ' + e.message; }
 }
 
-async function runAgent({ apiKey, messages, root, approve, emit }) {
+async function runClaude({ apiKey, messages, root, approve, emit }) {
   const ctx = { root, approve, emit };
   for (let step = 0; step < 25; step++) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -68,4 +68,40 @@ async function runAgent({ apiKey, messages, root, approve, emit }) {
   return messages;
 }
 
-module.exports = { runAgent };
+const OLLAMA = process.env.OLLAMA_HOST || 'http://localhost:11434';
+
+async function listOllamaModels() {
+  const r = await fetch(OLLAMA + '/api/tags');
+  return ((await r.json()).models || []).map(m => m.name);
+}
+
+// Local, free, offline: talks to Ollama's /api/chat with tool calling.
+async function runOllama({ model, messages, root, approve, emit }) {
+  const ctx = { root, approve, emit };
+  if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: SYSTEM + '\nWorkspace: ' + root });
+  const tools = TOOLS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+  for (let step = 0; step < 25; step++) {
+    let r;
+    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', body: JSON.stringify({ model, messages, tools, stream: false }) }); }
+    catch { throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.'); }
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    const m = data.message;
+    messages.push(m);
+    if (m.content) emit({ type: 'text', text: m.content });
+    if (!m.tool_calls || !m.tool_calls.length) return messages;
+    for (const c of m.tool_calls) {
+      const name = c.function.name;
+      const args = typeof c.function.arguments === 'string' ? JSON.parse(c.function.arguments) : c.function.arguments;
+      emit({ type: 'tool', name, input: args });
+      messages.push({ role: 'tool', tool_name: name, content: await runTool(name, args, ctx) });
+    }
+  }
+  return messages;
+}
+
+function runAgent(opts) {
+  return opts.provider === 'claude' ? runClaude(opts) : runOllama(opts);
+}
+
+module.exports = { runAgent, listOllamaModels };

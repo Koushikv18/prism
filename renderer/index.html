@@ -4,7 +4,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;height:100vh;display:grid;grid-template-columns:240px 1fr 380px;grid-template-rows:36px 1fr 200px;background:#1e1e1e;color:#ddd;font:13px system-ui}
 #bar{grid-column:1/4;display:flex;gap:8px;align-items:center;padding:0 8px;background:#2d2d2d}
-button,input{background:#3c3c3c;color:#ddd;border:1px solid #555;border-radius:4px;padding:4px 8px}
+button,input,select{background:#3c3c3c;color:#ddd;border:1px solid #555;border-radius:4px;padding:4px 8px}
 #tree{grid-row:2/4;overflow:auto;padding:6px;border-right:1px solid #333}
 #tree div{padding:2px 4px;cursor:pointer;white-space:nowrap}#tree div:hover{background:#2a2d2e}
 #editor{grid-column:2;grid-row:2}
@@ -14,7 +14,7 @@ button,input{background:#3c3c3c;color:#ddd;border:1px solid #555;border-radius:4
 #log{flex:1;overflow:auto;padding:8px;white-space:pre-wrap}#log .tool{color:#7aa2f7;font:12px monospace}#log .me{color:#9ece6a}
 #chat input,#term input{margin:6px;width:calc(100% - 12px)}
 </style></head><body>
-<div id="bar"><b>◈ Prism</b><button id="open">Open Folder</button><input id="url" placeholder="https://github.com/user/repo.git" size="38"><button id="clone">Clone</button><button id="save">Save</button><button id="key">API Key</button></div>
+<div id="bar"><b>◈ Prism</b><button id="open">Open Folder</button><input id="url" placeholder="https://github.com/user/repo.git" size="38"><button id="clone">Clone</button><button id="save">Save</button><button id="key">API Key</button><select id="provider"><option value="ollama">Local (Ollama)</option><option value="claude">Claude API</option></select><select id="model"></select></div>
 <div id="tree"></div><div id="editor"></div>
 <div id="term"><pre id="termout"></pre><input id="cmd" placeholder="$ terminal command, Enter to run"></div>
 <div id="chat"><div id="log"></div><input id="prompt" placeholder="Ask Prism to build, fix, explain…"></div>
