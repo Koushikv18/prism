@@ -53,84 +53,92 @@ require(['vs/editor/editor.main'], () => {
 let isOllamaOnline = false;
 
 async function checkOllamaHealth() {
-  const badge = $('ollama-status-badge');
-  const text = $('ollama-status-text');
+  const dot = $('ollama-status-dot');
   const modalText = $('modal-status-text');
 
   try {
     const health = await prism.checkOllama();
     isOllamaOnline = health.online;
 
-    badge.className = 'status-pill ' + (health.online ? 'online' : 'offline');
-    text.textContent = health.online ? 'OLLAMA ONLINE (11434)' : 'OLLAMA NOT DETECTED';
-    modalText.textContent = health.online
-      ? `Connected • ${health.models.length} models ready`
-      : 'Offline • Daemon not running or not installed';
-    modalText.style.color = health.online ? 'var(--ok)' : 'var(--err)';
+    if (dot) {
+      dot.className = 'status-dot ' + (health.online ? 'online' : 'offline');
+      dot.title = health.online
+        ? `Ollama: Connected (${health.models.length} model${health.models.length === 1 ? '' : 's'})`
+        : 'Ollama: Not detected (click to open setup)';
+    }
 
-    if (!health.online && !sessionStorage.getItem('notified-offline')) {
-      sessionStorage.setItem('notified-offline', '1');
-      openOllamaModal();
+    if (modalText) {
+      modalText.textContent = health.online
+        ? `Connected • ${health.models.length} model(s) ready`
+        : 'Offline • Daemon not running or not installed';
+      modalText.style.color = health.online ? 'var(--ok)' : 'var(--err)';
     }
   } catch (e) {
-    badge.className = 'status-pill offline';
-    text.textContent = 'OLLAMA OFFLINE';
-    modalText.textContent = 'Connection error: ' + e.message;
+    if (dot) {
+      dot.className = 'status-dot offline';
+      dot.title = 'Ollama: Connection error (click to open setup)';
+    }
+    if (modalText) modalText.textContent = 'Connection error: ' + e.message;
   }
 }
 
 function openOllamaModal() {
   $('ollama-modal').style.display = 'flex';
 }
-
 function closeOllamaModal() {
   $('ollama-modal').style.display = 'none';
 }
 
-$('ollama-status-badge').onclick = openOllamaModal;
-$('btnOllama').onclick = openOllamaModal;
-$('close-modal').onclick = closeOllamaModal;
+if ($('ollama-status-dot')) $('ollama-status-dot').onclick = openOllamaModal;
+if ($('btnOllama')) $('btnOllama').onclick = openOllamaModal;
+if ($('close-modal')) $('close-modal').onclick = closeOllamaModal;
 
 // Start Daemon
-$('btn-start-daemon').onclick = async () => {
-  $('modal-log').textContent += '[Prism] Starting Ollama daemon in background...\n';
-  $('btn-start-daemon').disabled = true;
-  try {
-    const res = await prism.startOllama();
-    $('modal-log').textContent += `[Prism] ${res.message}\n`;
-    await checkOllamaHealth();
-    await loadModels();
-  } catch (e) {
-    $('modal-log').textContent += `[Error] ${e.message}\n`;
-  } finally {
-    $('btn-start-daemon').disabled = false;
-  }
-};
-
-// Auto Install
-$('btn-install-ollama').onclick = async () => {
-  $('modal-log').textContent += '[Prism] Starting automated native installation...\n';
-  $('btn-install-ollama').disabled = true;
-  try {
-    const res = await prism.installOllama();
-    if (res.success) {
-      $('modal-log').textContent += '[Prism] Ollama setup successfully finished.\n';
+if ($('btn-start-daemon')) {
+  $('btn-start-daemon').onclick = async () => {
+    $('modal-log').textContent += '[Prism] Starting Ollama daemon in background...\n';
+    $('btn-start-daemon').disabled = true;
+    try {
+      const res = await prism.startOllama();
+      $('modal-log').textContent += `[Prism] ${res.message}\n`;
       await checkOllamaHealth();
       await loadModels();
-    } else {
-      $('modal-log').textContent += `[Error] ${res.error}\n`;
+    } catch (e) {
+      $('modal-log').textContent += `[Error] ${e.message}\n`;
+    } finally {
+      $('btn-start-daemon').disabled = false;
     }
-  } catch (e) {
-    $('modal-log').textContent += `[Exception] ${e.message}\n`;
-  } finally {
-    $('btn-install-ollama').disabled = false;
-  }
-};
+  };
+}
+
+// Auto Install
+if ($('btn-install-ollama')) {
+  $('btn-install-ollama').onclick = async () => {
+    $('modal-log').textContent += '[Prism] Starting automated native installation...\n';
+    $('btn-install-ollama').disabled = true;
+    try {
+      const res = await prism.installOllama();
+      if (res.success) {
+        $('modal-log').textContent += '[Prism] Ollama setup successfully finished.\n';
+        await checkOllamaHealth();
+        await loadModels();
+      } else {
+        $('modal-log').textContent += `[Error] ${res.error}\n`;
+      }
+    } catch (e) {
+      $('modal-log').textContent += `[Exception] ${e.message}\n`;
+    } finally {
+      $('btn-install-ollama').disabled = false;
+    }
+  };
+}
 
 if (prism.onInstallLog) {
   prism.onInstallLog(log => {
-    $('modal-log').textContent += log;
-    $('modal-log').scrollTop = 1e9;
+    if ($('modal-log')) {
+      $('modal-log').textContent += log;
+      $('modal-log').scrollTop = 1e9;
+    }
   });
 }
 
@@ -145,9 +153,150 @@ document.querySelectorAll('[data-pull]').forEach(btn => {
   };
 });
 
-/* ---------- Explorer & Search ---------- */
-const icon = n => ({ js: '🟨', ts: '🟦', json: '🧾', md: '📝', html: '🌐', css: '🎨', py: '🐍', tsx: '⚛️', jsx: '⚛️' }[n.split('.').pop()] || '📄');
+/* ---------- File Menu & Clone Modal ---------- */
+const fileMenuBtn = $('file-menu-btn');
+const fileMenu = $('file-menu');
+if (fileMenuBtn && fileMenu) {
+  fileMenuBtn.onclick = e => {
+    e.stopPropagation();
+    const isHidden = fileMenu.hidden;
+    fileMenu.hidden = !isHidden;
+    fileMenuBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    if ($('settings-popover')) $('settings-popover').hidden = true;
+  };
+}
 
+const menuOpen = $('menu-open');
+if (menuOpen) menuOpen.onclick = async () => {
+  if (fileMenu) fileMenu.hidden = true;
+  opened(await prism.openFolder());
+};
+
+function openCloneModal() {
+  if ($('clone-modal')) {
+    $('clone-modal').style.display = 'flex';
+    $('clone-url').value = '';
+    $('clone-url').focus();
+  }
+}
+function closeCloneModal() {
+  if ($('clone-modal')) $('clone-modal').style.display = 'none';
+}
+if ($('close-clone-modal')) $('close-clone-modal').onclick = closeCloneModal;
+if ($('cancel-clone')) $('cancel-clone').onclick = closeCloneModal;
+if ($('submit-clone')) {
+  $('submit-clone').onclick = async () => {
+    const u = $('clone-url').value.trim();
+    if (!u) return;
+    $('submit-clone').textContent = 'Cloning…';
+    $('submit-clone').disabled = true;
+    try {
+      const r = await prism.clone(u);
+      if (r.error) alert(r.error);
+      else {
+        closeCloneModal();
+        opened(r.root);
+      }
+    } finally {
+      $('submit-clone').textContent = 'Clone';
+      $('submit-clone').disabled = false;
+    }
+  };
+}
+
+if ($('menu-clone')) $('menu-clone').onclick = () => {
+  if (fileMenu) fileMenu.hidden = true;
+  openCloneModal();
+};
+if ($('menu-save')) $('menu-save').onclick = () => {
+  if (fileMenu) fileMenu.hidden = true;
+  save();
+};
+if ($('menu-save-all')) $('menu-save-all').onclick = () => {
+  if (fileMenu) fileMenu.hidden = true;
+  saveAll();
+};
+if ($('menu-close-tab')) $('menu-close-tab').onclick = () => {
+  if (fileMenu) fileMenu.hidden = true;
+  if (active) closeTab(active);
+};
+
+/* ---------- Settings Popover ---------- */
+const btnSettings = $('btn-settings');
+const settingsPopover = $('settings-popover');
+if (btnSettings && settingsPopover) {
+  btnSettings.onclick = e => {
+    e.stopPropagation();
+    const isHidden = settingsPopover.hidden;
+    settingsPopover.hidden = !isHidden;
+    if (fileMenu) fileMenu.hidden = true;
+    if (isHidden) updateKeyHint();
+  };
+}
+if ($('close-settings-btn')) {
+  $('close-settings-btn').onclick = () => {
+    if (settingsPopover) settingsPopover.hidden = true;
+  };
+}
+
+async function updateKeyHint() {
+  const s = await prism.getSettings();
+  const prov = s.provider;
+  const isLocal = prov === 'ollama';
+  if ($('key-row')) $('key-row').style.display = isLocal ? 'none' : 'flex';
+  if (!isLocal && $('key-hint')) {
+    const has = await prism.hasKey(prov);
+    $('key-hint').textContent = has
+      ? `✓ ${prov === 'gemini' ? 'Gemini' : 'Anthropic'} API key is stored`
+      : `No ${prov === 'gemini' ? 'Gemini' : 'Anthropic'} API key configured`;
+    $('key-hint').style.color = has ? 'var(--ok)' : 'var(--warn)';
+  }
+}
+
+if ($('key-save-btn')) {
+  $('key-save-btn').onclick = async () => {
+    const val = $('key-input').value.trim();
+    if (!val) return;
+    const s = await prism.getSettings();
+    await prism.setKey(val, s.provider);
+    $('key-input').value = '';
+    await updateKeyHint();
+  };
+}
+
+// Global outside-click dismiss
+document.addEventListener('click', e => {
+  if (fileMenu && !fileMenu.hidden && fileMenuBtn && !fileMenuBtn.contains(e.target) && !fileMenu.contains(e.target)) {
+    fileMenu.hidden = true;
+    fileMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (settingsPopover && !settingsPopover.hidden && btnSettings && !btnSettings.contains(e.target) && !settingsPopover.contains(e.target)) {
+    settingsPopover.hidden = true;
+  }
+});
+
+/* ---------- SVG Icons & Security Helper ---------- */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+const svgChevron = open => open
+  ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`
+  : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+const svgFolder = open => `<svg class="file-icon folder" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${
+  open
+    ? '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'
+    : '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'
+}</svg>`;
+
+const svgFile = n => {
+  const ext = n.split('.').pop().toLowerCase();
+  return `<svg class="file-icon ${ext}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+};
+
+/* ---------- Explorer & Search ---------- */
 async function tree(rel, el, depth = 0, query = '') {
   el.innerHTML = '';
   const entries = await prism.list(rel);
@@ -159,14 +308,14 @@ async function tree(rel, el, depth = 0, query = '') {
     row.className = 'row';
     row.style.paddingLeft = depth * 14 + 10 + 'px';
     row.dataset.path = p;
-    row.innerHTML = `<span class="ch">${f.dir ? '▶' : ''}</span><span>${f.dir ? '📁' : icon(f.name)}</span><span>${f.name}</span>`;
+    row.innerHTML = `<span class="ch">${f.dir ? svgChevron(false) : ''}</span>${f.dir ? svgFolder(false) : svgFile(f.name)}<span>${escapeHtml(f.name)}</span>`;
 
     const kids = document.createElement('div');
     row.onclick = async e => {
       e.stopPropagation();
       if (!f.dir) return openFile(p);
       const open = kids.hasChildNodes();
-      row.querySelector('.ch').textContent = open ? '▶' : '▼';
+      row.querySelector('.ch').innerHTML = svgChevron(!open);
       open ? (kids.innerHTML = '') : await tree(p, kids, depth + 1, query);
     };
     el.append(row, kids);
@@ -253,7 +402,7 @@ function renderTabs() {
   for (const [p, t] of tabs) {
     const d = document.createElement('div');
     d.className = 'tab' + (p === active ? ' on' : '');
-    d.innerHTML = `<span>${icon(p)}</span><span>${p.split('/').pop()}</span><span class="x">${t.dirty ? '<span class="dot">●</span>' : '✕'}</span>`;
+    d.innerHTML = `${svgFile(p)}<span>${escapeHtml(p.split('/').pop())}</span><span class="x">${t.dirty ? '<span class="dot">●</span>' : '✕'}</span>`;
     d.onclick = () => show(p);
     d.querySelector('.x').onclick = e => { e.stopPropagation(); closeTab(p); };
     d.onauxclick = () => closeTab(p);
@@ -299,21 +448,9 @@ async function gitBranch() {
   $('branch').textContent = '⎇ ' + (b && !b.includes('[exit') ? b : 'no-git');
 }
 
-$('open').onclick = async () => opened(await prism.openFolder());
-$('clone').onclick = async () => {
-  const u = $('url').value.trim();
-  if (!u) return;
-  $('clone').textContent = 'Cloning…';
-  const r = await prism.clone(u);
-  $('clone').textContent = 'Clone';
-  r.error ? alert(r.error) : opened(r.root);
-};
-
-$('key').onclick = async () => {
-  const s = await prism.getSettings();
-  if (s.provider === 'ollama') return alert('Local Ollama mode does not require an API key.');
-  const k = prompt((s.provider === 'gemini' ? 'Gemini' : 'Anthropic') + ' API key:');
-  if (k) await prism.setKey(k, s.provider);
+if ($('open')) $('open').onclick = async () => opened(await prism.openFolder());
+if ($('key')) $('key').onclick = () => {
+  if ($('btn-settings')) $('btn-settings').click();
 };
 
 /* ---------- Terminal ---------- */
@@ -407,13 +544,15 @@ setInterval(checkOllamaHealth, 8000);
 
 /* ---------- Command Palette ---------- */
 const cmds = () => [
-  ['Open Folder', () => $('open').click()],
+  ['Open Folder', async () => opened(await prism.openFolder())],
+  ['Clone Repository', openCloneModal],
+  ['AI Settings', () => $('btn-settings') && $('btn-settings').click()],
   ['Save File', save],
   ['Save All', saveAll],
   ['Close Tab', () => active && closeTab(active)],
   ['Toggle Terminal', () => $('panel').hidden = !$('panel').hidden],
-  ['Toggle AI Panel', toggleChat],
-  ['Ollama Service Hub', openOllamaModal],
+  ['Toggle Agent Panel', toggleChat],
+  ['Ollama Setup', openOllamaModal],
   ['Format Document', () => editor?.getAction('editor.action.formatDocument').run()],
   ['Refresh Explorer', refresh],
 ].map(([n, fn]) => ({ label: n, hint: 'command', run: fn }));
@@ -468,10 +607,11 @@ const toggleChat = () => {
 $('togChat').onclick = toggleChat;
 document.querySelector('[data-view="search"]').onclick = () => openPalette('files');
 
-addEventListener('keydown', e => {
+addEventListener('keydown', async e => {
   const m = e.ctrlKey || e.metaKey;
   if (m && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); openPalette('cmd'); }
   else if (m && e.key.toLowerCase() === 'p') { e.preventDefault(); openPalette('files'); }
+  else if (m && e.key.toLowerCase() === 'o') { e.preventDefault(); opened(await prism.openFolder()); }
   else if (m && e.key === '`') { e.preventDefault(); $('panel').hidden = !$('panel').hidden; if (!$('panel').hidden) $('cmd').focus(); }
   else if (m && e.key.toLowerCase() === 'l') { e.preventDefault(); toggleChat(); if (!$('chat').hidden) $('prompt').focus(); }
   else if (m && e.key.toLowerCase() === 's' && !editor?.hasTextFocus()) { e.preventDefault(); save(); }
