@@ -86,7 +86,7 @@ async function opened(r) {
 async function gitBranch() { const b = (await prism.term('git branch --show-current')).trim(); $('branch').textContent = '⎇ ' + (b && !b.includes('[exit') ? b : 'no git'); }
 $('open').onclick = async () => opened(await prism.openFolder());
 $('clone').onclick = async () => { const u = $('url').value.trim(); if (!u) return; $('clone').textContent = 'Cloning…'; const r = await prism.clone(u); $('clone').textContent = 'Clone'; r.error ? alert(r.error) : opened(r.root); };
-$('key').onclick = async () => { const k = prompt('Anthropic API key (stored encrypted on this machine):'); if (k) await prism.setKey(k); };
+$('key').onclick = async () => { const s = await prism.getSettings(); if (s.provider === 'ollama') return alert('Local mode needs no key. Switch to Gemini or Claude first.'); const k = prompt((s.provider === 'gemini' ? 'Gemini' : 'Anthropic') + ' API key (stored encrypted on this machine):'); if (k) await prism.setKey(k, s.provider); };
 
 /* ---------- Terminal ---------- */
 const hist = []; let hi = 0;
@@ -104,6 +104,7 @@ const log = (t, c = 'ai') => { const d = document.createElement('div'); d.classN
 prism.onAgent(ev => {
   if (ev.type === 'text') log(ev.text);
   if (ev.type === 'tool') log('⚙ ' + ev.name + ' ' + JSON.stringify(ev.input).slice(0, 160), 'tool');
+  if (ev.type === 'workspace') opened(ev.root);
   if (ev.type === 'file_changed') { refresh(); const t = tabs.get(ev.path); if (t) prism.read(ev.path).then(x => { t.saved = x; t.model.setValue(x); }); }
 });
 $('prompt').onkeydown = async e => {
@@ -115,9 +116,9 @@ $('prompt').onkeydown = async e => {
 
 /* ---------- Providers ---------- */
 async function loadModels() {
-  const s = await prism.getSettings(); $('provider').value = s.provider; $('prov').textContent = s.provider === 'ollama' ? 'Local model' : 'Claude';
+  const s = await prism.getSettings(); $('provider').value = s.provider; $('prov').textContent = { ollama: 'Local model', gemini: 'Gemini', claude: 'Claude' }[s.provider];
   const sel = $('model'); sel.innerHTML = '';
-  const names = s.provider === 'ollama' ? await prism.models() : ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'];
+  const names = s.provider === 'ollama' ? await prism.models() : s.provider === 'gemini' ? ['gemini-2.5-flash', 'gemini-2.5-pro'] : ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'];
   if (!names.length) { sel.innerHTML = '<option>No models: run "ollama pull qwen2.5-coder:7b"</option>'; return; }
   for (const n of names) sel.add(new Option(n, n));
   if (!names.includes(s.model)) await prism.setSettings({ model: names[0] }); else sel.value = s.model;

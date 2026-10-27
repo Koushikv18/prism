@@ -8,8 +8,8 @@ let win, root = null, history = [];
 const setPath = () => path.join(app.getPath('userData'), 'settings.json');
 let settings = { provider: 'ollama', model: 'qwen2.5-coder:7b' };
 try { settings = { ...settings, ...JSON.parse(fs.readFileSync(setPath(), 'utf8')) }; } catch {}
-const keyPath = () => path.join(app.getPath('userData'), 'anthropic.key');
-const getKey = () => process.env.ANTHROPIC_API_KEY || (fs.existsSync(keyPath()) ? safeStorage.decryptString(fs.readFileSync(keyPath())) : null);
+const keyPath = p => path.join(app.getPath('userData'), (p === 'gemini' ? 'gemini' : 'anthropic') + '.key');
+const getKey = p => (p === 'gemini' ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY) || (fs.existsSync(keyPath(p)) ? safeStorage.decryptString(fs.readFileSync(keyPath(p))) : null);
 const inRoot = rel => { const p = path.resolve(root, rel || '.'); if (p !== root && !p.startsWith(root + path.sep)) throw new Error('outside workspace'); return p; };
 
 app.whenReady().then(() => {
@@ -38,18 +38,19 @@ ipcMain.handle('read', (_, rel) => fs.readFileSync(inRoot(rel), 'utf8'));
 ipcMain.handle('write', (_, rel, text) => { fs.writeFileSync(inRoot(rel), text); return true; });
 ipcMain.handle('term', (_, cmd) => new Promise(res => exec(cmd, { cwd: root, timeout: 120000 },
   (err, o, e) => res((o || '') + (e || '') + (err ? `\n[exit ${err.code}]` : '')))));
-ipcMain.handle('has-key', () => !!getKey());
-ipcMain.handle('set-key', (_, k) => { fs.writeFileSync(keyPath(), safeStorage.encryptString(k)); return true; });
+ipcMain.handle('has-key', (_, p) => !!getKey(p));
+ipcMain.handle('set-key', (_, k, p) => { fs.writeFileSync(keyPath(p), safeStorage.encryptString(k)); return true; });
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_, s) => { settings = { ...settings, ...s }; history = []; fs.writeFileSync(setPath(), JSON.stringify(settings)); return settings; });
 ipcMain.handle('models', async () => { try { return await listOllamaModels(); } catch { return []; } });
 ipcMain.handle('agent', async (_, prompt) => {
-  if (!root) return { error: 'Open a folder first.' };
-  const apiKey = getKey();
-  if (settings.provider === 'claude' && !apiKey) return { error: 'Set your Anthropic API key first, or switch to Ollama (local).' };
+  const apiKey = getKey(settings.provider);
+  if (settings.provider === 'claude' && !apiKey) return { error: 'Set your Anthropic API key first, or switch provider.' };
+  if (settings.provider === 'gemini' && !apiKey) return { error: 'Set your Gemini API key first (API Key button), or switch provider.' };
   history.push({ role: 'user', content: prompt });
   try {
     await runAgent({ provider: settings.provider, model: settings.model, apiKey, messages: history, root,
+      setRoot: p => { root = p; win.webContents.send('agent-event', { type: 'workspace', root: p }); },
       emit: ev => win.webContents.send('agent-event', ev),
       approve: async cmd => (await dialog.showMessageBox(win, { type: 'question', buttons: ['Run', 'Deny'], defaultId: 1, message: 'Agent wants to run:', detail: cmd })).response === 0 });
     return { ok: true };

@@ -8,12 +8,14 @@ git clone https://github.com/Koushikv18/prism.git && cd prism
 npm install
 npm start
 ```
-Click **API Key** and paste your Anthropic key (stored encrypted via the OS keychain), or set `ANTHROPIC_API_KEY`.
+Pick a provider (**Gemini**, **Claude**, or free local **Ollama**), click **API Key** and paste your key (stored encrypted via the OS keychain), or set `ANTHROPIC_API_KEY`.
 
 ## Run as an app
 - **Quickest:** double-click `run.bat` (Windows) or run `./run.sh` (macOS/Linux).
 - **Installer:** `npm run dist` builds a real installer in `dist/` (.exe, .dmg, or .AppImage/.deb for your OS).
 - **No build needed (optional CI):** move `ci/build.yml` to `.github/workflows/build.yml`, push, then run it from GitHub → Actions and download the installers.
+
+Agent tools: `git_clone`, `list_dir`, `read_file`, `write_file`, `code_search`, `run_command` (always asks first). Ask: *"Clone https://github.com/owner/repo, find where authentication is handled, and explain it."* Repos clone into `~/.prism/workspaces/`.
 
 ## Free local mode (Ollama)
 1. Install Ollama from https://ollama.com
