@@ -1,0 +1,10 @@
+{
+  "name": "prism",
+  "version": "0.1.0",
+  "description": "Prism: a personal AI coding IDE (agent + editor + terminal) for your own laptop",
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "dependencies": { "monaco-editor": "0.52.2" },
+  "devDependencies": { "electron": "^33.2.0" },
+  "license": "MIT"
+}

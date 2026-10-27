@@ -1,0 +1,71 @@
+// Prism agent loop: Claude with tools (read/write/list/run) scoped to the open workspace.
+const fs = require('fs');
+const path = require('path');
+const { exec } = require('child_process');
+
+const MODEL = process.env.PRISM_MODEL || 'claude-sonnet-5-5';
+const SYSTEM = 'You are Prism, an expert coding agent inside a personal IDE. Work inside the open workspace using your tools. Read before editing, make focused changes, run commands to verify, and explain briefly what you did.';
+
+const TOOLS = [
+  { name: 'list_dir', description: 'List files in a workspace-relative directory.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
+  { name: 'read_file', description: 'Read a workspace-relative text file.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
+  { name: 'write_file', description: 'Create or overwrite a workspace-relative file.', input_schema: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } },
+  { name: 'run_command', description: 'Run a shell command in the workspace root (user must approve).', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } },
+];
+
+function safe(root, rel) {
+  const p = path.resolve(root, rel || '.');
+  if (p !== root && !p.startsWith(root + path.sep)) throw new Error('Path escapes workspace');
+  return p;
+}
+
+async function runTool(name, input, ctx) {
+  try {
+    if (name === 'list_dir') {
+      return fs.readdirSync(safe(ctx.root, input.path), { withFileTypes: true })
+        .filter(e => e.name !== 'node_modules' && e.name !== '.git')
+        .map(e => e.name + (e.isDirectory() ? '/' : '')).join('\n') || '(empty)';
+    }
+    if (name === 'read_file') return fs.readFileSync(safe(ctx.root, input.path), 'utf8').slice(0, 100000);
+    if (name === 'write_file') {
+      const p = safe(ctx.root, input.path);
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      fs.writeFileSync(p, input.content);
+      ctx.emit({ type: 'file_changed', path: input.path });
+      return 'Wrote ' + input.path;
+    }
+    if (name === 'run_command') {
+      if (!(await ctx.approve(input.command))) return 'User denied this command.';
+      return await new Promise(res => exec(input.command, { cwd: ctx.root, timeout: 120000, maxBuffer: 2e6 },
+        (err, out, errOut) => res(((out || '') + (errOut || '') + (err ? '\n[exit ' + err.code + ']' : '')).slice(-20000) || '(no output)')));
+    }
+    return 'Unknown tool';
+  } catch (e) { return 'Error: ' + e.message; }
+}
+
+async function runAgent({ apiKey, messages, root, approve, emit }) {
+  const ctx = { root, approve, emit };
+  for (let step = 0; step < 25; step++) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 4096, system: SYSTEM + '\nWorkspace: ' + root, tools: TOOLS, messages }),
+    });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error.message);
+    messages.push({ role: 'assistant', content: data.content });
+    const results = [];
+    for (const b of data.content) {
+      if (b.type === 'text') emit({ type: 'text', text: b.text });
+      if (b.type === 'tool_use') {
+        emit({ type: 'tool', name: b.name, input: b.input });
+        results.push({ type: 'tool_result', tool_use_id: b.id, content: await runTool(b.name, b.input, ctx) });
+      }
+    }
+    if (!results.length) return messages;
+    messages.push({ role: 'user', content: results });
+  }
+  return messages;
+}
+
+module.exports = { runAgent };
