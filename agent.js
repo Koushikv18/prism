@@ -65,23 +65,30 @@ async function runTool(name, input, ctx) {
   } catch (e) { return 'Error: ' + e.message; }
 }
 
-async function runClaude({ apiKey, messages, root, approve, emit, setRoot }) {
+async function runClaude({ apiKey, model, messages, root, approve, emit, setRoot, signal }) {
   const ctx = { root, approve, emit, setRoot };
+  const claudeModel = model || MODEL || 'claude-3-5-sonnet-20241022';
   for (let step = 0; step < 25; step++) {
+    if (signal?.aborted) throw new Error('Agent stopped by user');
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal,
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 4096, system: SYSTEM + '\nWorkspace: ' + root, tools: TOOLS, messages }),
+      body: JSON.stringify({ model: claudeModel, max_tokens: 4096, system: SYSTEM + '\nWorkspace: ' + root, tools: TOOLS, messages }),
     });
     const data = await r.json();
     if (data.error) throw new Error(data.error.message);
     messages.push({ role: 'assistant', content: data.content });
     const results = [];
     for (const b of data.content) {
+      if (signal?.aborted) throw new Error('Agent stopped by user');
       if (b.type === 'text') emit({ type: 'text', text: b.text });
       if (b.type === 'tool_use') {
-        emit({ type: 'tool', name: b.name, input: b.input });
-        results.push({ type: 'tool_result', tool_use_id: b.id, content: await runTool(b.name, b.input, ctx) });
+        const tid = b.id || ('tool_' + Math.random().toString(36).slice(2, 8));
+        emit({ type: 'tool', id: tid, name: b.name, input: b.input });
+        const out = await runTool(b.name, b.input, ctx);
+        emit({ type: 'tool_result', id: tid, name: b.name, output: out });
+        results.push({ type: 'tool_result', tool_use_id: b.id, content: out });
       }
     }
     if (!results.length) return messages;
@@ -106,14 +113,18 @@ async function listOllamaModels() {
 }
 
 // Local, free, offline: talks to Ollama's /api/chat with tool calling.
-async function runOllama({ model, messages, root, approve, emit, setRoot }) {
+async function runOllama({ model, messages, root, approve, emit, setRoot, signal }) {
   const ctx = { root, approve, emit, setRoot };
   if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: SYSTEM + '\nWorkspace: ' + root });
   const tools = TOOLS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
   for (let step = 0; step < 25; step++) {
+    if (signal?.aborted) throw new Error('Agent stopped by user');
     let r;
-    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', body: JSON.stringify({ model, messages, tools, stream: false }) }); }
-    catch { throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.'); }
+    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages, tools, stream: false }) }); }
+    catch (e) {
+      if (signal?.aborted) throw new Error('Agent stopped by user');
+      throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.');
+    }
     const data = await r.json();
     if (data.error) throw new Error(data.error);
     const m = data.message;
@@ -121,10 +132,14 @@ async function runOllama({ model, messages, root, approve, emit, setRoot }) {
     if (m.content) emit({ type: 'text', text: m.content });
     if (!m.tool_calls || !m.tool_calls.length) return messages;
     for (const c of m.tool_calls) {
+      if (signal?.aborted) throw new Error('Agent stopped by user');
       const name = c.function.name;
       const args = typeof c.function.arguments === 'string' ? JSON.parse(c.function.arguments) : c.function.arguments;
-      emit({ type: 'tool', name, input: args });
-      messages.push({ role: 'tool', tool_name: name, content: await runTool(name, args, ctx) });
+      const tid = c.id || ('tool_' + Math.random().toString(36).slice(2, 8));
+      emit({ type: 'tool', id: tid, name, input: args });
+      const out = await runTool(name, args, ctx);
+      emit({ type: 'tool_result', id: tid, name, output: out });
+      messages.push({ role: 'tool', tool_name: name, content: out });
     }
   }
   return messages;
@@ -132,12 +147,13 @@ async function runOllama({ model, messages, root, approve, emit, setRoot }) {
 
 // Google Gemini via REST function calling (no extra dependency).
 const upper = s => Array.isArray(s) ? s.map(upper) : s && typeof s === 'object' ? Object.fromEntries(Object.entries(s).map(([k, v]) => [k, k === 'type' ? String(v).toUpperCase() : upper(v)])) : s;
-async function runGemini({ apiKey, model, messages, root, approve, emit, setRoot }) {
+async function runGemini({ apiKey, model, messages, root, approve, emit, setRoot, signal }) {
   const ctx = { root, approve, emit, setRoot };
   const decls = TOOLS.map(t => ({ name: t.name, description: t.description, parameters: upper(t.input_schema) }));
   for (let step = 0; step < 25; step++) {
+    if (signal?.aborted) throw new Error('Agent stopped by user');
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      method: 'POST', signal, headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM + (ctx.root ? '\nWorkspace: ' + ctx.root : '\nNo workspace open yet.') }] }, contents: messages, tools: [{ functionDeclarations: decls }] }),
     });
     const data = await r.json();
@@ -147,10 +163,14 @@ async function runGemini({ apiKey, model, messages, root, approve, emit, setRoot
     messages.push(content);
     const results = [];
     for (const p of content.parts || []) {
+      if (signal?.aborted) throw new Error('Agent stopped by user');
       if (p.text) emit({ type: 'text', text: p.text });
       if (p.functionCall) {
-        emit({ type: 'tool', name: p.functionCall.name, input: p.functionCall.args || {} });
-        results.push({ functionResponse: { name: p.functionCall.name, response: { output: await runTool(p.functionCall.name, p.functionCall.args || {}, ctx) } } });
+        const tid = 'tool_' + Math.random().toString(36).slice(2, 8);
+        emit({ type: 'tool', id: tid, name: p.functionCall.name, input: p.functionCall.args || {} });
+        const out = await runTool(p.functionCall.name, p.functionCall.args || {}, ctx);
+        emit({ type: 'tool_result', id: tid, name: p.functionCall.name, output: out });
+        results.push({ functionResponse: { name: p.functionCall.name, response: { output: out } } });
       }
     }
     if (!results.length) return messages;

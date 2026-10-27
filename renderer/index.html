@@ -277,10 +277,32 @@
   <div class="split v" id="s3"></div>
 
   <aside id="chat">
-    <div class="pane-title">Agent</div>
+    <div class="pane-title" style="display:flex; align-items:center; justify-content:space-between;">
+      <span>Agent</span>
+      <div class="agent-title-actions" style="display:flex; align-items:center; gap:8px;">
+        <div id="agent-working" class="working-pill" style="display: none;">
+          <span class="spinner-dot"></span>
+          <span>Working…</span>
+        </div>
+        <button id="agent-stop-btn" class="btn btn-sm btn-danger" style="display: none;" title="Stop generation">Stop</button>
+      </div>
+    </div>
     <div id="log"></div>
     <div class="composer">
-      <textarea id="prompt" rows="3" placeholder="Ask Prism to build, fix, explain… (Enter to send)"></textarea>
+      <div id="file-mention-popup" class="mention-popup" hidden>
+        <div class="mention-header">Reference workspace file:</div>
+        <ul id="mention-list" class="mention-list"></ul>
+      </div>
+      <div class="composer-inner">
+        <textarea id="prompt" rows="2" placeholder="Ask Prism to build, fix, explain… (@file, Shift+Enter for newline)"></textarea>
+        <div class="composer-actions">
+          <span class="composer-hint">Shift+Enter for newline</span>
+          <button id="send-btn" class="btn primary btn-sm" title="Send (Enter)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Send</span>
+          </button>
+        </div>
+      </div>
     </div>
   </aside>
 </main>

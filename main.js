@@ -183,11 +183,22 @@ ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_, s) => { settings = { ...settings, ...s }; history = []; fs.writeFileSync(setPath(), JSON.stringify(settings)); return settings; });
 ipcMain.handle('models', async () => { try { return await listOllamaModels(); } catch { return []; } });
 
+let agentController = null;
+ipcMain.handle('agent-stop', () => {
+  if (agentController) {
+    agentController.abort();
+    agentController = null;
+    return true;
+  }
+  return false;
+});
+
 ipcMain.handle('agent', async (_, prompt) => {
   const apiKey = getKey(settings.provider);
   if (settings.provider === 'claude' && !apiKey) return { error: 'Set your Anthropic API key first, or switch provider.' };
   if (settings.provider === 'gemini' && !apiKey) return { error: 'Set your Gemini API key first, or switch provider.' };
   history.push({ role: 'user', content: prompt });
+  agentController = new AbortController();
   try {
     await runAgent({
       provider: settings.provider,
@@ -195,18 +206,21 @@ ipcMain.handle('agent', async (_, prompt) => {
       apiKey,
       messages: history,
       root,
+      signal: agentController.signal,
       setRoot: p => { root = p; win.webContents.send('agent-event', { type: 'workspace', root: p }); },
       emit: ev => win.webContents.send('agent-event', ev),
       approve: async cmd => (await dialog.showMessageBox(win, {
         type: 'question',
         buttons: ['Run', 'Deny'],
-        defaultId: 0,
+        defaultId: 1,
         message: 'Agent wants to run shell command:',
         detail: cmd
       })).response === 0
     });
+    agentController = null;
     return { ok: true };
   } catch (e) {
+    agentController = null;
     return { error: e.message };
   }
 });

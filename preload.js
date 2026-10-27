@@ -14,6 +14,7 @@ const api = {
   hasKey: call('has-key'),
   setKey: call('set-key'),
   agent: call('agent'),
+  stopAgent: call('agent-stop'),
   getSettings: call('get-settings'),
   setSettings: call('set-settings'),
   models: call('models'),
