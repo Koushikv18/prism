@@ -441,6 +441,7 @@ async function opened(r) {
   [...tabs.keys()].forEach(closeTab);
   await refresh();
   gitBranch();
+  renderRecents();
 }
 
 async function gitBranch() {
@@ -534,13 +535,207 @@ async function loadModels() {
 $('provider').onchange = async e => {
   await prism.setSettings({ provider: e.target.value });
   await loadModels();
+  if (typeof updateKeyHint === 'function') updateKeyHint();
 };
 $('model').onchange = e => prism.setSettings({ model: e.target.value });
 
+/* ---------- Onboarding & Recents ---------- */
+async function renderRecents() {
+  const container = $('recents-list');
+  if (!container) return;
+  const recents = await prism.getRecents();
+  container.innerHTML = '';
+  if (!recents || !recents.length) {
+    container.innerHTML = '<div class="recents-empty">No recent workspaces</div>';
+    return;
+  }
+  for (const p of recents) {
+    const item = document.createElement('div');
+    item.className = 'recent-item';
+    const folderName = p.split(/[\\/]/).pop() || p;
+    item.innerHTML = `<span class="recent-name">${svgFolder(false)} ${escapeHtml(folderName)}</span><span class="recent-path" title="${escapeHtml(p)}">${escapeHtml(p)}</span>`;
+    item.onclick = async () => {
+      const res = await prism.openPath(p);
+      if (res.error) {
+        alert(res.error);
+        renderRecents();
+      } else {
+        opened(res.root);
+      }
+    };
+    container.append(item);
+  }
+}
+
+if ($('welcome-open')) $('welcome-open').onclick = async () => opened(await prism.openFolder());
+if ($('welcome-clone')) $('welcome-clone').onclick = openCloneModal;
+if ($('clear-recents-btn')) {
+  $('clear-recents-btn').onclick = async () => {
+    await prism.clearRecents();
+    renderRecents();
+  };
+}
+
+let onboardingStep = 1;
+let onboardingProvider = 'ollama';
+
+async function checkProviderReady() {
+  const s = await prism.getSettings();
+  if (s.provider === 'ollama') {
+    const h = await prism.checkOllama();
+    return h.online && h.models && h.models.length > 0;
+  }
+  return await prism.hasKey(s.provider);
+}
+
+async function checkOnboarding() {
+  const card = $('setup-card');
+  if (!card) return;
+  const ready = await checkProviderReady();
+  if (!ready) {
+    card.style.display = 'flex';
+    goToStep(1);
+  } else {
+    card.style.display = 'none';
+  }
+}
+
+function goToStep(step) {
+  onboardingStep = step;
+  if ($('setup-step-1')) $('setup-step-1').style.display = step === 1 ? 'flex' : 'none';
+  if ($('setup-step-2')) $('setup-step-2').style.display = step === 2 ? 'flex' : 'none';
+  if ($('setup-step-3')) $('setup-step-3').style.display = step === 3 ? 'flex' : 'none';
+
+  if ($('setup-step-indicator')) $('setup-step-indicator').textContent = `Step ${step} of 3`;
+  if ($('setup-progress-fill')) $('setup-progress-fill').style.width = step === 1 ? '33%' : step === 2 ? '66%' : '100%';
+
+  if (step === 2) updateOnboardingStep2();
+  if (step === 3) updateOnboardingStep3();
+}
+
+async function updateOnboardingStep2() {
+  const isOllama = onboardingProvider === 'ollama';
+  if ($('setup-step-2-label')) {
+    $('setup-step-2-label').textContent = isOllama ? '2. Setup Ollama Service' : '2. Enter API Credentials';
+  }
+  if ($('setup-ollama-body')) $('setup-ollama-body').style.display = isOllama ? 'block' : 'none';
+  if ($('setup-key-body')) $('setup-key-body').style.display = isOllama ? 'none' : 'block';
+
+  if (isOllama) {
+    const h = await prism.checkOllama();
+    const statusEl = $('setup-ollama-status');
+    if (statusEl) {
+      statusEl.textContent = h.online
+        ? `✓ Ollama is online on localhost:11434 (${h.models.length} model(s) available)`
+        : 'Ollama is offline. Click Start or Auto Install to proceed.';
+      statusEl.style.color = h.online ? 'var(--ok)' : 'var(--warn)';
+    }
+  } else {
+    if ($('setup-key-label')) {
+      $('setup-key-label').textContent = `Enter your ${onboardingProvider === 'gemini' ? 'Google Gemini' : 'Anthropic Claude'} API key:`;
+    }
+    const has = await prism.hasKey(onboardingProvider);
+    const keyStatusEl = $('setup-key-status');
+    if (keyStatusEl) {
+      keyStatusEl.textContent = has ? '✓ API key configured' : 'Key required for inference';
+      keyStatusEl.style.color = has ? 'var(--ok)' : 'var(--warn)';
+    }
+  }
+}
+
+async function updateOnboardingStep3() {
+  const sel = $('setup-model-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const quick = $('setup-quick-models');
+  if (quick) quick.innerHTML = '';
+
+  if (onboardingProvider === 'ollama') {
+    const names = await prism.models();
+    if (names.length) {
+      names.forEach(n => sel.add(new Option(n, n)));
+    } else {
+      sel.innerHTML = '<option value="">No local models installed yet</option>';
+    }
+    const recs = ['qwen2.5-coder:7b', 'llama3:8b', 'deepseek-coder:6.7b'];
+    if (quick) {
+      recs.forEach(m => {
+        const btn = document.createElement('button');
+        btn.textContent = '+ Pull ' + m;
+        btn.onclick = async () => {
+          btn.textContent = 'Pulling…';
+          btn.disabled = true;
+          await prism.pullModel(m);
+          await updateOnboardingStep3();
+          await loadModels();
+        };
+        quick.append(btn);
+      });
+    }
+  } else if (onboardingProvider === 'gemini') {
+    ['gemini-2.5-flash', 'gemini-2.5-pro'].forEach(m => sel.add(new Option(m, m)));
+  } else {
+    ['claude-3-5-sonnet', 'claude-3-opus'].forEach(m => sel.add(new Option(m, m)));
+  }
+}
+
+// Step 1 actions
+if ($('setup-next-1')) {
+  $('setup-next-1').onclick = () => {
+    const selRadio = document.querySelector('input[name="onboarding-provider"]:checked');
+    if (selRadio) onboardingProvider = selRadio.value;
+    goToStep(2);
+  };
+}
+
+// Step 2 actions
+if ($('setup-back-2')) $('setup-back-2').onclick = () => goToStep(1);
+if ($('setup-next-2')) $('setup-next-2').onclick = () => goToStep(3);
+if ($('setup-start-ollama')) {
+  $('setup-start-ollama').onclick = async () => {
+    $('setup-start-ollama').disabled = true;
+    await prism.startOllama();
+    $('setup-start-ollama').disabled = false;
+    updateOnboardingStep2();
+    checkOllamaHealth();
+  };
+}
+if ($('setup-install-ollama')) {
+  $('setup-install-ollama').onclick = async () => {
+    openOllamaModal();
+    if ($('btn-install-ollama')) $('btn-install-ollama').click();
+  };
+}
+if ($('setup-save-key')) {
+  $('setup-save-key').onclick = async () => {
+    const k = $('setup-api-key').value.trim();
+    if (!k) return;
+    await prism.setKey(k, onboardingProvider);
+    $('setup-api-key').value = '';
+    updateOnboardingStep2();
+  };
+}
+
+// Step 3 actions
+if ($('setup-back-3')) $('setup-back-3').onclick = () => goToStep(2);
+if ($('setup-finish')) {
+  $('setup-finish').onclick = async () => {
+    const model = $('setup-model-select').value;
+    await prism.setSettings({ provider: onboardingProvider, model });
+    await loadModels();
+    $('setup-card').style.display = 'none';
+  };
+}
+
 // Init routines
-loadModels();
-checkOllamaHealth();
-setInterval(checkOllamaHealth, 8000);
+async function initApp() {
+  await loadModels();
+  await checkOllamaHealth();
+  await renderRecents();
+  await checkOnboarding();
+  setInterval(checkOllamaHealth, 8000);
+}
+initApp();
 
 /* ---------- Command Palette ---------- */
 const cmds = () => [

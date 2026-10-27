@@ -7,8 +7,15 @@ const { runAgent, listOllamaModels } = require('./agent');
 let win, root = null, history = [];
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const setPath = () => path.join(app.getPath('userData'), 'settings.json');
-let settings = { provider: 'ollama', model: 'qwen2.5-coder:7b' };
+let settings = { provider: 'ollama', model: 'qwen2.5-coder:7b', recents: [] };
 try { settings = { ...settings, ...JSON.parse(fs.readFileSync(setPath(), 'utf8')) }; } catch {}
+if (!Array.isArray(settings.recents)) settings.recents = [];
+
+function addRecent(p) {
+  if (!p) return;
+  settings.recents = [p, ...settings.recents.filter(x => x !== p)].slice(0, 10);
+  try { fs.writeFileSync(setPath(), JSON.stringify(settings)); } catch {}
+}
 
 const keyPath = p => path.join(app.getPath('userData'), (p === 'gemini' ? 'gemini' : 'anthropic') + '.key');
 const getKey = p => (p === 'gemini' ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY) || (fs.existsSync(keyPath(p)) ? safeStorage.decryptString(fs.readFileSync(keyPath(p))) : null);
@@ -130,7 +137,23 @@ ipcMain.handle('open-folder', async () => {
   if (r.canceled) return null;
   root = r.filePaths[0];
   history = [];
+  addRecent(root);
   return root;
+});
+
+ipcMain.handle('open-path', async (_, p) => {
+  if (!p || !fs.existsSync(p)) return { error: 'Folder does not exist: ' + p };
+  root = p;
+  history = [];
+  addRecent(root);
+  return { root };
+});
+
+ipcMain.handle('get-recents', () => settings.recents || []);
+ipcMain.handle('clear-recents', () => {
+  settings.recents = [];
+  try { fs.writeFileSync(setPath(), JSON.stringify(settings)); } catch {}
+  return [];
 });
 
 ipcMain.handle('clone', async (_, url) => {
@@ -140,6 +163,7 @@ ipcMain.handle('clone', async (_, url) => {
     if (err) return res({ error: e || err.message });
     root = path.join(r.filePaths[0], path.basename(url).replace(/\.git$/, ''));
     history = [];
+    addRecent(root);
     res({ root });
   }));
 });

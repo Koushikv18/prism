@@ -134,16 +134,133 @@
     <div id="editorWrap">
       <div id="editor"></div>
       <div id="welcome">
-        <div class="logo big">◈</div>
-        <h1>Prism</h1>
-        <p class="subtitle">AI code editor</p>
-        <ul>
-          <li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open</li>
-          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</li>
-          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li>
-          <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li>
-          <li><kbd>Ctrl</kbd>+<kbd>L</kbd> Agent</li>
-        </ul>
+        <div class="welcome-container">
+          <div class="brand-hero">
+            <svg class="brand-hero-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 22 22 22 12 2"/>
+            </svg>
+            <h1>Prism</h1>
+            <p class="subtitle">AI code editor</p>
+          </div>
+
+          <!-- 3-Step Setup Card: shown if no provider ready -->
+          <div id="setup-card" class="setup-card" style="display: none;">
+            <div class="setup-header">
+              <div class="setup-title-row">
+                <span class="setup-title">AI Quick Setup</span>
+                <span id="setup-step-indicator" class="step-badge">Step 1 of 3</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="setup-progress-fill" class="progress-bar-fill" style="width: 33%;"></div>
+              </div>
+            </div>
+
+            <!-- Step 1: Provider selection -->
+            <div id="setup-step-1" class="setup-step">
+              <div class="step-label">1. Choose your AI provider</div>
+              <div class="provider-cards">
+                <label class="provider-radio">
+                  <input type="radio" name="onboarding-provider" value="ollama" checked>
+                  <div class="card-box">
+                    <span class="card-title">Ollama (Local)</span>
+                    <span class="card-desc">Free, private, runs entirely offline on your computer</span>
+                  </div>
+                </label>
+                <label class="provider-radio">
+                  <input type="radio" name="onboarding-provider" value="gemini">
+                  <div class="card-box">
+                    <span class="card-title">Google Gemini</span>
+                    <span class="card-desc">Fast cloud API with Gemini 2.5 Flash / Pro models</span>
+                  </div>
+                </label>
+                <label class="provider-radio">
+                  <input type="radio" name="onboarding-provider" value="claude">
+                  <div class="card-box">
+                    <span class="card-title">Anthropic Claude</span>
+                    <span class="card-desc">Claude 3.5 Sonnet coding intelligence</span>
+                  </div>
+                </label>
+              </div>
+              <div class="step-footer">
+                <div></div>
+                <button id="setup-next-1" class="btn primary">Next →</button>
+              </div>
+            </div>
+
+            <!-- Step 2: Configure credentials / Ollama service -->
+            <div id="setup-step-2" class="setup-step" style="display: none;">
+              <div class="step-label" id="setup-step-2-label">2. Setup Ollama Service</div>
+              <div id="setup-ollama-body">
+                <p class="hint-text">Ollama background service runs on localhost:11434.</p>
+                <div class="setup-actions-row">
+                  <button id="setup-start-ollama" class="btn">Start Service</button>
+                  <button id="setup-install-ollama" class="btn primary">One-Click Auto Install</button>
+                </div>
+                <div id="setup-ollama-status" class="status-msg">Checking status…</div>
+              </div>
+              <div id="setup-key-body" style="display: none;">
+                <p class="hint-text" id="setup-key-label">Enter your API key (stored encrypted on this device):</p>
+                <div class="input-with-btn">
+                  <input type="password" id="setup-api-key" class="text-field" placeholder="Paste API key…">
+                  <button id="setup-save-key" class="btn">Save Key</button>
+                </div>
+                <div id="setup-key-status" class="status-msg"></div>
+              </div>
+              <div class="step-footer">
+                <button id="setup-back-2" class="btn ghost">← Back</button>
+                <button id="setup-next-2" class="btn primary">Next →</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Pick or pull model -->
+            <div id="setup-step-3" class="setup-step" style="display: none;">
+              <div class="step-label">3. Select Model</div>
+              <div class="form-row">
+                <select id="setup-model-select" class="select-field"></select>
+              </div>
+              <div id="setup-quick-models" class="quick-models" style="margin-top: 6px;"></div>
+              <div class="step-footer">
+                <button id="setup-back-3" class="btn ghost">← Back</button>
+                <button id="setup-finish" class="btn primary">Finish Setup ✓</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions: Open Folder / Clone -->
+          <div class="welcome-actions">
+            <button id="welcome-open" class="btn primary">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Open Folder</span>
+            </button>
+            <button id="welcome-clone" class="btn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/>
+              </svg>
+              <span>Clone Repository</span>
+            </button>
+          </div>
+
+          <!-- Recent Workspaces -->
+          <div id="welcome-recents" class="welcome-recents">
+            <div class="recents-header">
+              <span>Recent Workspaces</span>
+              <button id="clear-recents-btn" class="link-btn">Clear</button>
+            </div>
+            <div id="recents-list" class="recents-list"></div>
+          </div>
+
+          <!-- Quick shortcuts -->
+          <ul class="shortcuts-list">
+            <li><kbd>Ctrl</kbd>+<kbd>O</kbd> Open folder</li>
+            <li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open</li>
+            <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Commands</li>
+            <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li>
+            <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li>
+            <li><kbd>Ctrl</kbd>+<kbd>L</kbd> Agent</li>
+          </ul>
+        </div>
       </div>
     </div>
     <div class="split h" id="s2"></div>

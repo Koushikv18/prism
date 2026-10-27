@@ -529,30 +529,236 @@ button, input, select, textarea {
   justify-content: center;
   background: var(--bg);
   color: var(--mut);
-  text-align: center;
   padding: 24px;
+  overflow-y: auto;
 }
-#welcome h1 {
-  margin: 0 0 4px;
+.welcome-container {
+  max-width: 520px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.brand-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.brand-hero-icon {
+  color: var(--acc);
+  margin-bottom: 8px;
+}
+.brand-hero h1 {
+  margin: 0;
   color: var(--fg);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
 }
-#welcome .subtitle {
+.brand-hero .subtitle {
+  margin: 4px 0 0;
   color: var(--mut);
-  margin-top: 0;
   font-size: 13px;
 }
-#welcome .welcome-actions {
+
+/* 3-Step Setup Card */
+.setup-card {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.setup-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.setup-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.step-badge {
+  font-size: 11px;
+  color: var(--acc);
+  background: var(--acc-bg);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.progress-bar-bg {
+  width: 100%;
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--acc);
+  transition: width 0.3s ease;
+}
+
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.provider-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.provider-radio {
+  display: block;
+  cursor: pointer;
+}
+.provider-radio input {
+  position: absolute;
+  opacity: 0;
+}
+.card-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s, background 0.15s;
+}
+.provider-radio input:checked + .card-box {
+  border-color: var(--acc);
+  background: var(--acc-bg);
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.card-desc {
+  font-size: 11px;
+  color: var(--mut);
+}
+.step-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.hint-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mut);
+}
+.setup-actions-row {
   display: flex;
   gap: 8px;
-  margin: 16px 0;
+  margin: 4px 0;
 }
-#welcome ul {
+.status-msg {
+  font-size: 11px;
+  color: var(--mut);
+  min-height: 16px;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+.welcome-recents {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  text-align: left;
+}
+.recents-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+.link-btn {
+  background: transparent;
+  border: 0;
+  color: var(--mut);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+.link-btn:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+.recents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: transparent;
+}
+.recent-item:hover {
+  background: var(--bg3);
+}
+.recent-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.recent-path {
+  font-size: 11px;
+  color: var(--mut);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recents-empty {
+  font-size: 12px;
+  color: var(--mut);
+  padding: 4px 0;
+}
+
+.shortcuts-list {
   list-style: none;
   padding: 0;
-  line-height: 2.2;
-  font-size: 12px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--mut);
 }
 
 /* Terminal panel */

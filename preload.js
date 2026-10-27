@@ -3,6 +3,9 @@ const call = c => (...a) => ipcRenderer.invoke(c, ...a);
 
 const api = {
   openFolder: call('open-folder'),
+  openPath: call('open-path'),
+  getRecents: call('get-recents'),
+  clearRecents: call('clear-recents'),
   clone: call('clone'),
   list: call('list'),
   read: call('read'),
