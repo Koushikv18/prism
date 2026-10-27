@@ -67,7 +67,7 @@ function installOllama(onLog) {
       ? path.join(__dirname, 'scripts', 'install-ollama.ps1')
       : path.join(__dirname, 'scripts', 'install-ollama.sh');
 
-    onLog(`[Antigravity] Executing installer: ${path.basename(script)}...\n`);
+    onLog(`[Prism] Executing installer: ${path.basename(script)}...\n`);
     const child = isWin
       ? spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', script])
       : spawn('bash', [script]);
@@ -77,7 +77,7 @@ function installOllama(onLog) {
 
     child.on('close', async code => {
       if (code === 0) {
-        onLog('[Antigravity] Installation completed successfully.\n');
+        onLog('[Prism] Installation completed successfully.\n');
         await startOllamaDaemon();
         resolve({ success: true });
       } else {
@@ -91,10 +91,10 @@ function installOllama(onLog) {
 
 app.whenReady().then(() => {
   win = new BrowserWindow({
-    width: 1540,
-    height: 940,
-    backgroundColor: '#030712',
-    title: 'Antigravity IDE v2',
+    width: 1400,
+    height: 850,
+    backgroundColor: '#0d1117',
+    title: 'Prism',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

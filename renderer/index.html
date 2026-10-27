@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Antigravity IDE v2</title>
+  <title>Prism</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:11434; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' blob:; worker-src blob:; font-src 'self'">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="../node_modules/monaco-editor/min/vs/editor/editor.main.css">
@@ -11,12 +11,11 @@
 <header id="top">
   <div class="brand">
     <span class="logo">◈</span>
-    <span>ANTIGRAVITY</span>
-    <span class="badge-version">v2.0</span>
+    <span>Prism</span>
   </div>
 
   <div class="actions">
-    <button id="open" class="btn">📁 Open Folder</button>
+    <button id="open" class="btn">Open Folder</button>
     <input id="url" placeholder="Clone: https://github.com/user/repo.git">
     <button id="clone" class="btn">Clone</button>
   </div>
@@ -24,9 +23,9 @@
   <div class="spacer"></div>
 
   <!-- Ollama Connection Status Badge -->
-  <div id="ollama-status-badge" class="status-pill checking" title="Click to open Ollama Manager">
+  <div id="ollama-status-badge" class="status-pill checking" title="Ollama Status">
     <span class="dot"></span>
-    <span id="ollama-status-text">CHECKING OLLAMA...</span>
+    <span id="ollama-status-text">Checking Ollama...</span>
   </div>
 
   <select id="provider">
@@ -43,13 +42,13 @@
   <nav id="activity">
     <button class="act on" data-view="files" title="Explorer">🗂</button>
     <button class="act" data-view="search" title="Quick Open (Ctrl+P)">🔍</button>
-    <button class="act" id="btnOllama" title="Ollama Service Hub">⚡</button>
+    <button class="act" id="btnOllama" title="Ollama Status">⚡</button>
     <div class="spacer"></div>
-    <button class="act" id="togChat" title="Toggle AI Reasoning Drawer (Ctrl+L)">✦</button>
+    <button class="act" id="togChat" title="Toggle Agent Panel (Ctrl+L)">✦</button>
   </nav>
 
   <aside id="side">
-    <div class="pane-title" id="rootName">WORKSPACE EXPLORER</div>
+    <div class="pane-title" id="rootName">Explorer</div>
     <div id="filter-wrap">
       <input id="filter" placeholder="Filter files..." spellcheck="false">
     </div>
@@ -65,24 +64,24 @@
       <div id="editor"></div>
       <div id="welcome">
         <div class="logo big">◈</div>
-        <h1>Antigravity IDE v2</h1>
-        <p style="color: var(--acc); font-weight: 500;">Next-Gen Cyberpunk Local AI Coding Workspace</p>
+        <h1>Prism</h1>
+        <p class="subtitle">AI code editor</p>
         <ul>
-          <li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open file</li>
+          <li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open</li>
           <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</li>
-          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save changes</li>
-          <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Workspace terminal</li>
-          <li><kbd>Ctrl</kbd>+<kbd>L</kbd> Agent reasoning drawer</li>
+          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li>
+          <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li>
+          <li><kbd>Ctrl</kbd>+<kbd>L</kbd> Agent</li>
         </ul>
       </div>
     </div>
     <div class="split h" id="s2"></div>
     <div id="panel">
-      <div class="pane-title">TERMINAL INSTANCE</div>
+      <div class="pane-title">Terminal</div>
       <pre id="termout"></pre>
       <div class="prompt-row">
         <span id="ps">$</span>
-        <input id="cmd" spellcheck="false" placeholder="run shell command...">
+        <input id="cmd" spellcheck="false" placeholder="run command...">
       </div>
     </div>
   </section>
@@ -90,10 +89,10 @@
   <div class="split v" id="s3"></div>
 
   <aside id="chat">
-    <div class="pane-title">✦ AGENT REASONING KERNEL</div>
+    <div class="pane-title">Agent</div>
     <div id="log"></div>
     <div class="composer">
-      <textarea id="prompt" rows="3" placeholder="Ask Antigravity to write code, inspect, or refactor… (Enter to send)"></textarea>
+      <textarea id="prompt" rows="3" placeholder="Ask Prism to build, fix, explain… (Enter to send)"></textarea>
     </div>
   </aside>
 </main>
@@ -107,13 +106,13 @@
   <span id="prov">Local model</span>
 </footer>
 
-<!-- Interactive Ollama Orchestration Modal Card -->
+<!-- Interactive Ollama Modal -->
 <div id="ollama-modal" class="modal-overlay" style="display: none;">
   <div class="modal-card">
     <div class="modal-header">
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="color:var(--acc); font-size:16px;">⚡</span>
-        <strong style="color:#fff; font-size:13px; letter-spacing:0.5px;">OLLAMA LOCAL ORCHESTRATION</strong>
+        <strong style="color:#fff; font-size:13px; letter-spacing:0.5px;">Ollama</strong>
       </div>
       <button id="close-modal" class="btn ghost" style="padding:2px 8px;">✕</button>
     </div>

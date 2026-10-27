@@ -6,7 +6,7 @@ let allFiles = [];
 /* ---------- Monaco Editor with Cyberpunk Obsidian Theme ---------- */
 require.config({ paths: { vs: '../node_modules/monaco-editor/min/vs' } });
 require(['vs/editor/editor.main'], () => {
-  monaco.editor.defineTheme('antigravity-obsidian', {
+  monaco.editor.defineTheme('prism-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [
@@ -30,7 +30,7 @@ require(['vs/editor/editor.main'], () => {
   });
 
   editor = monaco.editor.create($('editor'), {
-    theme: 'antigravity-obsidian',
+    theme: 'prism-dark',
     automaticLayout: true,
     fontSize: 13.5,
     fontFamily: '"JetBrains Mono", Consolas, monospace',
@@ -93,11 +93,11 @@ $('close-modal').onclick = closeOllamaModal;
 
 // Start Daemon
 $('btn-start-daemon').onclick = async () => {
-  $('modal-log').textContent += '[Antigravity] Starting Ollama daemon in background...\n';
+  $('modal-log').textContent += '[Prism] Starting Ollama daemon in background...\n';
   $('btn-start-daemon').disabled = true;
   try {
     const res = await prism.startOllama();
-    $('modal-log').textContent += `[Antigravity] ${res.message}\n`;
+    $('modal-log').textContent += `[Prism] ${res.message}\n`;
     await checkOllamaHealth();
     await loadModels();
   } catch (e) {
@@ -109,12 +109,12 @@ $('btn-start-daemon').onclick = async () => {
 
 // Auto Install
 $('btn-install-ollama').onclick = async () => {
-  $('modal-log').textContent += '[Antigravity] Starting automated native installation...\n';
+  $('modal-log').textContent += '[Prism] Starting automated native installation...\n';
   $('btn-install-ollama').disabled = true;
   try {
     const res = await prism.installOllama();
     if (res.success) {
-      $('modal-log').textContent += '[Antigravity] Ollama setup successfully finished.\n';
+      $('modal-log').textContent += '[Prism] Ollama setup successfully finished.\n';
       await checkOllamaHealth();
       await loadModels();
     } else {
@@ -138,9 +138,9 @@ if (prism.onInstallLog) {
 document.querySelectorAll('[data-pull]').forEach(btn => {
   btn.onclick = async () => {
     const m = btn.dataset.pull;
-    $('modal-log').textContent += `[Antigravity] Pulling model ${m}...\n`;
+    $('modal-log').textContent += `[Prism] Pulling model ${m}...\n`;
     await prism.pullModel(m);
-    $('modal-log').textContent += `[Antigravity] Finished pulling ${m}.\n`;
+    $('modal-log').textContent += `[Prism] Finished pulling ${m}.\n`;
     await loadModels();
   };
 });
@@ -287,8 +287,8 @@ async function saveAll() {
 async function opened(r) {
   if (!r) return;
   root = r;
-  document.title = 'Antigravity IDE – ' + r;
-  $('rootName').textContent = r.split(/[\\/]/).pop().toUpperCase();
+  document.title = 'Prism – ' + r;
+  $('rootName').textContent = r.split(/[\\/]/).pop();
   [...tabs.keys()].forEach(closeTab);
   await refresh();
   gitBranch();
@@ -364,7 +364,7 @@ $('prompt').onkeydown = async e => {
   e.target.value = '';
   log(t, 'me');
   await saveAll();
-  const busy = log('Agent reasoning & generating plan…', 'tool');
+  const busy = log('Thinking…', 'tool');
   const r = await prism.agent(t);
   busy.remove();
   if (r.error) log(r.error, 'err');

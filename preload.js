@@ -15,7 +15,7 @@ const api = {
   setSettings: call('set-settings'),
   models: call('models'),
 
-  // Antigravity Ollama Orchestration
+  // Ollama Orchestration
   checkOllama: call('ollama:health'),
   startOllama: call('ollama:start'),
   installOllama: call('ollama:install'),
@@ -30,4 +30,3 @@ const api = {
 };
 
 contextBridge.exposeInMainWorld('prism', api);
-contextBridge.exposeInMainWorld('antigravity', api);

@@ -1,5 +1,5 @@
 # scripts/install-ollama.ps1
-# Automated Windows Ollama Installer and Service Starter for Antigravity IDE v2
+# Automated Windows Ollama Installer and Service Starter for Prism
 [CmdletBinding()]
 param(
     [switch]$StartOnly
@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 $OllamaHost = "http://localhost:11434"
 
-function Write-CyberStatus($msg, $type="INFO") {
+function Write-Status($msg, $type="INFO") {
     $colors = @{ "INFO"="Cyan"; "OK"="Green"; "WARN"="Yellow"; "ERR"="Red" }
     $c = "White"
     if ($colors.ContainsKey($type)) { $c = $colors[$type] }
@@ -25,10 +25,10 @@ function Test-OllamaService {
     }
 }
 
-Write-CyberStatus "Verifying Ollama local status..." "INFO"
+Write-Status "Verifying Ollama local status..." "INFO"
 
 if (Test-OllamaService) {
-    Write-CyberStatus "Ollama service is already active and healthy on port 11434." "OK"
+    Write-Status "Ollama service is already active and healthy on port 11434." "OK"
     exit 0
 }
 
@@ -50,21 +50,21 @@ if (-not $OllamaExe) {
 
 # 3. Install if missing and not in -StartOnly mode
 if (-not $OllamaExe -and -not $StartOnly) {
-    Write-CyberStatus "Ollama is not installed. Commencing automatic installation..." "WARN"
+    Write-Status "Ollama is not installed. Commencing automatic installation..." "WARN"
     
     # Try winget first if available
     $Winget = Get-Command "winget" -ErrorAction SilentlyContinue
     $Installed = $false
     if ($Winget) {
-        Write-CyberStatus "Attempting installation via Windows Package Manager (winget)..." "INFO"
+        Write-Status "Attempting installation via Windows Package Manager (winget)..." "INFO"
         try {
             & winget install Ollama.Ollama --accept-source-agreements --accept-package-agreements --silent
             if ($LASTEXITCODE -eq 0) {
                 $Installed = $true
-                Write-CyberStatus "Winget installation completed successfully." "OK"
+                Write-Status "Winget installation completed successfully." "OK"
             }
         } catch {
-            Write-CyberStatus "Winget install encountered an issue, falling back to direct installer..." "WARN"
+            Write-Status "Winget install encountered an issue, falling back to direct installer..." "WARN"
         }
     }
 
@@ -72,15 +72,15 @@ if (-not $OllamaExe -and -not $StartOnly) {
     if (-not $Installed) {
         $InstallerUrl = "https://ollama.com/download/OllamaSetup.exe"
         $TempInstaller = Join-Path $env:TEMP "OllamaSetup.exe"
-        Write-CyberStatus "Downloading official Ollama setup package from $InstallerUrl..." "INFO"
+        Write-Status "Downloading official Ollama setup package from $InstallerUrl..." "INFO"
         Invoke-WebRequest -Uri $InstallerUrl -OutFile $TempInstaller -UseBasicParsing
         
-        Write-CyberStatus "Running Ollama installer silently..." "INFO"
+        Write-Status "Running Ollama installer silently..." "INFO"
         $process = Start-Process -FilePath $TempInstaller -ArgumentList "/silent" -Wait -PassThru
         if ($process.ExitCode -eq 0) {
-            Write-CyberStatus "Ollama installer finished successfully." "OK"
+            Write-Status "Ollama installer finished successfully." "OK"
         } else {
-            Write-CyberStatus "Installer exited with code: $($process.ExitCode)" "WARN"
+            Write-Status "Installer exited with code: $($process.ExitCode)" "WARN"
         }
     }
 
@@ -98,29 +98,29 @@ if (-not $OllamaExe -and -not $StartOnly) {
 }
 
 # 4. Start background service if installed
-Write-CyberStatus "Starting Ollama background instance (`"ollama serve`")..." "INFO"
+Write-Status "Starting Ollama background instance (`"ollama serve`")..." "INFO"
 if ($OllamaExe) {
     Start-Process -FilePath "$OllamaExe" -ArgumentList "serve" -WindowStyle Hidden
 } else {
     try {
         Start-Process "ollama" -ArgumentList "serve" -WindowStyle Hidden
     } catch {
-        Write-CyberStatus "Could not spawn 'ollama serve'. Please verify installation." "ERR"
+        Write-Status "Could not spawn 'ollama serve'. Please verify installation." "ERR"
         exit 1
     }
 }
 
 # 5. Poll for readiness
-Write-CyberStatus "Waiting for Ollama API to initialize on localhost:11434..." "INFO"
+Write-Status "Waiting for Ollama API to initialize on localhost:11434..." "INFO"
 $retries = 15
 while ($retries -gt 0) {
     Start-Sleep -Seconds 1
     if (Test-OllamaService) {
-        Write-CyberStatus "Ollama is now ONLINE and ready for inference!" "OK"
+        Write-Status "Ollama is now ONLINE and ready for inference!" "OK"
         exit 0
     }
     $retries--
 }
 
-Write-CyberStatus "Timeout waiting for Ollama to become available." "ERR"
+Write-Status "Timeout waiting for Ollama to become available." "ERR"
 exit 1

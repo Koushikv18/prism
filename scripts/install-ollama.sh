@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/install-ollama.sh
-# Automated macOS/Linux Ollama Installer and Service Starter for Antigravity IDE v2
+# Automated macOS/Linux Ollama Installer and Service Starter for Prism
 set -e
 
 OLLAMA_HOST="http://localhost:11434"
@@ -41,17 +41,17 @@ fi
 
 # 2. Start daemon in background
 info "Launching 'ollama serve' in background..."
-nohup ollama serve > /tmp/ollama-antigravity.log 2>&1 &
+nohup ollama serve > /tmp/ollama-prism.log 2>&1 &
 
 # 3. Poll for service ready
 info "Waiting for Ollama to accept connections on port 11434..."
 for i in {1..15}; do
     sleep 1
     if check_service; then
-        ok "Ollama is now ONLINE and ready for Antigravity IDE!"
+        ok "Ollama is now ONLINE and ready for Prism!"
         exit 0
     fi
 done
 
-err "Ollama service start timed out. Check /tmp/ollama-antigravity.log for logs."
+err "Ollama service start timed out. Check /tmp/ollama-prism.log for logs."
 exit 1
