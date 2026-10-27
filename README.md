@@ -10,6 +10,11 @@ npm start
 ```
 Click **API Key** and paste your Anthropic key (stored encrypted via the OS keychain), or set `ANTHROPIC_API_KEY`.
 
+## Run as an app
+- **Quickest:** double-click `run.bat` (Windows) or run `./run.sh` (macOS/Linux).
+- **Installer:** `npm run dist` builds a real installer in `dist/` (.exe, .dmg, or .AppImage/.deb for your OS).
+- **No build needed (optional CI):** move `ci/build.yml` to `.github/workflows/build.yml`, push, then run it from GitHub → Actions and download the installers.
+
 ## Free local mode (Ollama)
 1. Install Ollama from https://ollama.com
 2. `ollama pull qwen2.5-coder:7b` (use a larger model if you have the RAM)

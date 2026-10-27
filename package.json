@@ -3,8 +3,47 @@
   "version": "0.1.0",
   "description": "Prism: a personal AI coding IDE (agent + editor + terminal) for your own laptop",
   "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "dependencies": { "monaco-editor": "0.52.2" },
-  "devDependencies": { "electron": "^33.2.0" },
-  "license": "MIT"
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "monaco-editor": "0.52.2"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "license": "MIT",
+  "build": {
+    "appId": "com.koushik.prism",
+    "productName": "Prism",
+    "files": [
+      "main.js",
+      "agent.js",
+      "preload.js",
+      "renderer/**",
+      "node_modules/monaco-editor/min/vs/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
 }
