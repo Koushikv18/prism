@@ -27,3 +27,6 @@ Click **API Key** and paste your Anthropic key (stored encrypted via the OS keyc
 
 ## Roadmap
 Streaming responses, multi-tab editing, diff review, real PTY terminal (node-pty), git panel, MCP servers.
+
+## UI
+VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirty indicators, quick open (`Ctrl+P`), command palette (`Ctrl+Shift+P`), resizable panels, terminal with history (`` Ctrl+` ``), AI agent panel (`Ctrl+L`), and a status bar with git branch and cursor position.

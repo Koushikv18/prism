@@ -1,23 +1,46 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Prism</title>
+<html lang="en"><head><meta charset="utf-8"><title>Prism</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' blob:; worker-src blob:; font-src 'self'">
-<style>
-*{box-sizing:border-box}body{margin:0;height:100vh;display:grid;grid-template-columns:240px 1fr 380px;grid-template-rows:36px 1fr 200px;background:#1e1e1e;color:#ddd;font:13px system-ui}
-#bar{grid-column:1/4;display:flex;gap:8px;align-items:center;padding:0 8px;background:#2d2d2d}
-button,input,select{background:#3c3c3c;color:#ddd;border:1px solid #555;border-radius:4px;padding:4px 8px}
-#tree{grid-row:2/4;overflow:auto;padding:6px;border-right:1px solid #333}
-#tree div{padding:2px 4px;cursor:pointer;white-space:nowrap}#tree div:hover{background:#2a2d2e}
-#editor{grid-column:2;grid-row:2}
-#term{grid-column:2;grid-row:3;display:flex;flex-direction:column;border-top:1px solid #333}
-#termout{flex:1;margin:0;padding:6px;overflow:auto;font:12px monospace}
-#chat{grid-column:3;grid-row:2/4;display:flex;flex-direction:column;border-left:1px solid #333}
-#log{flex:1;overflow:auto;padding:8px;white-space:pre-wrap}#log .tool{color:#7aa2f7;font:12px monospace}#log .me{color:#9ece6a}
-#chat input,#term input{margin:6px;width:calc(100% - 12px)}
-</style></head><body>
-<div id="bar"><b>◈ Prism</b><button id="open">Open Folder</button><input id="url" placeholder="https://github.com/user/repo.git" size="38"><button id="clone">Clone</button><button id="save">Save</button><button id="key">API Key</button><select id="provider"><option value="ollama">Local (Ollama)</option><option value="claude">Claude API</option></select><select id="model"></select></div>
-<div id="tree"></div><div id="editor"></div>
-<div id="term"><pre id="termout"></pre><input id="cmd" placeholder="$ terminal command, Enter to run"></div>
-<div id="chat"><div id="log"></div><input id="prompt" placeholder="Ask Prism to build, fix, explain…"></div>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../node_modules/monaco-editor/min/vs/editor/editor.main.css">
+</head><body>
+<header id="top">
+  <div class="brand"><span class="logo">◈</span> Prism</div>
+  <div class="actions">
+    <button id="open" class="btn">Open Folder</button>
+    <input id="url" placeholder="Clone: https://github.com/user/repo.git">
+    <button id="clone" class="btn">Clone</button>
+  </div>
+  <div class="spacer"></div>
+  <select id="provider"><option value="ollama">Local · Ollama</option><option value="claude">Claude API</option></select>
+  <select id="model"></select>
+  <button id="key" class="btn ghost" title="Set Anthropic API key">API Key</button>
+</header>
+<main id="shell">
+  <nav id="activity">
+    <button class="act on" data-view="files" title="Explorer">🗂</button>
+    <button class="act" data-view="search" title="Quick Open (Ctrl+P)">🔍</button>
+    <div class="spacer"></div>
+    <button class="act" id="togChat" title="Toggle AI panel (Ctrl+L)">✦</button>
+  </nav>
+  <aside id="side"><div class="pane-title" id="rootName">EXPLORER</div><div id="tree"></div></aside>
+  <div class="split v" id="s1"></div>
+  <section id="center">
+    <div id="tabs"></div>
+    <div id="crumbs"></div>
+    <div id="editorWrap"><div id="editor"></div>
+      <div id="welcome"><div class="logo big">◈</div><h1>Prism</h1><p>AI-native code editor</p>
+        <ul><li><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick open</li><li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Commands</li><li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li><li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li><li><kbd>Ctrl</kbd>+<kbd>L</kbd> AI panel</li></ul></div></div>
+    <div class="split h" id="s2"></div>
+    <div id="panel"><div class="pane-title">TERMINAL</div><pre id="termout"></pre>
+      <div class="prompt-row"><span id="ps">$</span><input id="cmd" spellcheck="false" placeholder="run a command…"></div></div>
+  </section>
+  <div class="split v" id="s3"></div>
+  <aside id="chat"><div class="pane-title">✦ PRISM AGENT</div><div id="log"></div>
+    <div class="composer"><textarea id="prompt" rows="2" placeholder="Ask Prism to build, fix, explain…  (Enter to send)"></textarea></div></aside>
+</main>
+<footer id="status"><span id="branch">⎇ —</span><span id="fileinfo"></span><div class="spacer"></div><span id="lang"></span><span id="pos">Ln 1, Col 1</span><span id="prov"></span></footer>
+<div id="palette" hidden><input id="pin" spellcheck="false"><ul id="plist"></ul></div>
 <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
 <script src="renderer.js"></script>
 </body></html>
