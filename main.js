@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron')
 const fs = require('fs');
 const path = require('path');
 const { exec, spawn } = require('child_process');
-const { runAgent, listOllamaModels } = require('./agent');
+const { runAgent, listOllamaModels, refreshRadar, formatRadar } = require('./agent');
 
 let win, root = null, history = [];
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -110,7 +110,11 @@ app.whenReady().then(() => {
   });
 
   win.loadFile('renderer/index.html');
+  // Tech radar: refresh on launch and re-check every 6h (cached for 24h)
+  refreshRadar().catch(() => {});
+  setInterval(() => refreshRadar().catch(() => {}), 6 * 36e5);
 });
+ipcMain.handle('radar', async (_, force) => formatRadar(await refreshRadar(!!force)));
 
 // Ollama IPCs
 ipcMain.handle('ollama:health', async () => checkOllama());

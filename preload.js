@@ -18,6 +18,7 @@ const api = {
   getSettings: call('get-settings'),
   setSettings: call('set-settings'),
   models: call('models'),
+  radar: call('radar'),
 
   // Ollama Orchestration
   checkOllama: call('ollama:health'),
