@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path');
 const { exec, execFile } = require('child_process');
 const OLLAMA = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const BASE = 'You are Prism, an expert autonomous coding agent inside a personal IDE. Plan briefly, explore with list_dir/search/read_file before editing, prefer edit_file for small changes, verify by running tests or builds, fix failures, and end with a short summary. Use remember to save durable project facts.';
+const BASE = 'You are Prism, an expert autonomous coding agent inside a personal IDE. Plan briefly, explore with list_dir/search/read_file before editing, prefer edit_file for small changes, verify by running tests or builds, fix failures, and end with a short summary. Use remember to save durable project facts. REVERSE ENGINEERING: when asked to study a repo, clone_reference it, run analyze_repo, read entry points and core modules, then write ARCHITECTURE.md (purpose, module map, data flow, key algorithms, public API, build/run, design trade-offs) and a clean-room build plan. Re-implement from your understanding in your own code; never copy source verbatim, and respect and report the license.';
 const str = { type: 'string' };
 const obj = (properties, required) => ({ type: 'object', properties, required });
 const TOOLS = [
@@ -12,10 +12,27 @@ const TOOLS = [
   { name: 'write_file', description: 'Create or overwrite a file (user reviews a diff).', input_schema: obj({ path: str, content: str }, ['path', 'content']) },
   { name: 'edit_file', description: 'Replace one exact, unique snippet in a file.', input_schema: obj({ path: str, old: str, new: str }, ['path', 'old', 'new']) },
   { name: 'run_command', description: 'Run a shell command in the workspace root (user approves).', input_schema: obj({ command: str }, ['command']) },
+  { name: 'clone_reference', description: 'Shallow-clone a public https git repo into .prism/refs/<name> as a read-only reference to study.', input_schema: obj({ url: str }, ['url']) },
+  { name: 'analyze_repo', description: 'Map a repo: file counts, languages, manifests, entry points, top dependencies, biggest files, license.', input_schema: obj({ path: str }, ['path']) },
   { name: 'remember', description: 'Save a durable project note to PRISM.md.', input_schema: obj({ note: str }, ['note']) },
 ];
 const safe = (root, rel) => { const p = path.resolve(root, rel || '.'); if (p !== root && !p.startsWith(root + path.sep)) throw new Error('Path escapes workspace'); return p; };
 const system = root => { let m = ''; try { m = '\n\nProject memory (PRISM.md):\n' + fs.readFileSync(path.join(root, 'PRISM.md'), 'utf8').slice(0, 8000); } catch {} return BASE + '\nWorkspace: ' + root + m; };
+
+function analyze(root, rel) {
+  const base = safe(root, rel), ext = {}, imp = {}, big = [], ent = [], man = []; let n = 0, lic = '';
+  const skip = ['node_modules', '.git', 'dist', 'build', '__pycache__', '.venv', 'vendor', '.prism'];
+  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (skip.includes(e.name)) continue; const p = path.join(d, e.name);
+    if (e.isDirectory()) { walk(p); continue; } if (++n > 5000) return; const r = path.relative(base, p), x = path.extname(e.name).toLowerCase() || e.name, sz = fs.statSync(p).size;
+    ext[x] = (ext[x] || 0) + 1; big.push([r, sz]);
+    if (/^(package\.json|requirements\.txt|pyproject\.toml|go\.mod|Cargo\.toml|pom\.xml|build\.gradle|Gemfile|composer\.json|Dockerfile|Makefile)$/.test(e.name)) man.push(r);
+    if (/^(main|index|app|server|cli|__main__)\.[a-z]+$/i.test(e.name)) ent.push(r);
+    if (/^licen[sc]e/i.test(e.name)) lic = fs.readFileSync(p, 'utf8').slice(0, 120).replace(/\s+/g, ' ');
+    if (/\.(js|jsx|ts|tsx|mjs|py|go|rs|java)$/.test(x) && sz < 200000) for (const m of fs.readFileSync(p, 'utf8').matchAll(/from\s+['"]([^'"]+)['"]|require\(['"]([^'"]+)['"]\)|^\s*(?:from|import)\s+([\w.]+)/gm)) { const k = m[1] || m[2] || m[3]; if (k && !k.startsWith('.')) imp[k] = (imp[k] || 0) + 1; } } };
+  walk(base);
+  const top = (o, k) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, k).map(([a, b]) => `${a} (${b})`).join(', ');
+  return `Files: ${n}\nLanguages: ${top(ext, 10)}\nManifests: ${man.slice(0, 15).join(', ')}\nEntry candidates: ${ent.slice(0, 15).join(', ')}\nTop dependencies: ${top(imp, 25)}\nLargest files: ${big.sort((a, b) => b[1] - a[1]).slice(0, 10).map(([a, b]) => `${a} (${b}B)`).join(', ')}\nLicense: ${lic || 'none found'}`;
+}
 
 async function runTool(name, i, ctx) {
   const { root, emit } = ctx;
@@ -34,6 +51,15 @@ async function runTool(name, i, ctx) {
     if (name === 'run_command') {
       if (!(await ctx.approve(i.command))) return 'User denied this command.';
       return await new Promise(r => exec(i.command, { cwd: root, timeout: 180000, maxBuffer: 2e6 }, (e, o, er) => r(((o || '') + (er || '') + (e ? `\n[exit ${e.code}]` : '')).slice(-20000) || '(no output)')));
+    }
+    if (name === 'analyze_repo') return analyze(root, i.path);
+    if (name === 'clone_reference') {
+      if (!/^https:\/\/[\w.-]+\/[\w./-]+$/.test(i.url)) return 'Error: provide an https git URL';
+      if (!(await ctx.approve('git clone --depth 1 ' + i.url))) return 'User denied this clone.';
+      const nm = path.basename(i.url).replace(/\.git$/, ''), dest = path.join(root, '.prism', 'refs', nm); fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const err = await new Promise(r => execFile('git', ['clone', '--depth', '1', i.url, dest], (e, o, er) => r(e ? er || e.message : '')));
+      const gi = path.join(root, '.gitignore'); try { if (!fs.existsSync(gi) || !fs.readFileSync(gi, 'utf8').includes('.prism/')) fs.appendFileSync(gi, '\n.prism/\n'); } catch {}
+      return err ? 'Clone failed: ' + err : 'Cloned to .prism/refs/' + nm;
     }
     if (name === 'remember') { fs.appendFileSync(path.join(root, 'PRISM.md'), '- ' + i.note + '\n'); return 'Saved to PRISM.md'; }
     return 'Unknown tool';

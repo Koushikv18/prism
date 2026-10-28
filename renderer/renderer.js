@@ -39,3 +39,7 @@ async function loadModels() { const s = await prism.getSettings(); $('provider')
   for (const n of names) sel.add(new Option(n, n)); if (!names.includes(s.model)) await prism.setSettings({ model: names[0] }); else sel.value = s.model; }
 $('provider').onchange = async e => { await prism.setSettings({ provider: e.target.value }); loadModels(); };
 $('model').onchange = e => prism.setSettings({ model: e.target.value }); loadModels();
+
+$('re').onclick = () => { const u = prompt('Public repo URL to study and reverse engineer (https://github.com/owner/repo):'); if (!u) return;
+  $('prompt').value = `Reverse engineer ${u}: clone it as a reference, analyze its architecture, write ARCHITECTURE.md with module map, data flow, key algorithms and API, then propose a clean-room plan to build our own version. Do not copy its code verbatim; report its license.`;
+  $('prompt').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); };
