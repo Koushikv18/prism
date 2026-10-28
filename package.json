@@ -26,6 +26,8 @@
       "agent.js",
       "preload.js",
       "renderer/**",
+      "skills/**",
+      "templates/**",
       "node_modules/monaco-editor/min/vs/**",
       "package.json"
     ],

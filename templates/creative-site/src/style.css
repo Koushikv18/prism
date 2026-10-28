@@ -1,0 +1,13 @@
+:root{--bg:#0a0a0f;--fg:#f2f2f5;--acc:#7cf5d4;--mut:#8b8b99}
+*{box-sizing:border-box;margin:0}html{background:var(--bg)}
+body{color:var(--fg);font:400 1rem/1.5 "Helvetica Neue",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+#gl{position:fixed;inset:0;width:100%;height:100%;z-index:-1}
+header{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:24px 4vw;z-index:5;mix-blend-mode:difference}
+header a{color:#fff;text-decoration:none;margin-left:24px}header .logo{margin:0;font-weight:700}
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 4vw}
+h1{font-size:clamp(3rem,10vw,9rem);line-height:.95;letter-spacing:-.04em;font-weight:700}.sub{margin-top:24px;color:var(--mut)}
+.panel{min-height:100vh;padding:20vh 4vw}h2{font-size:clamp(2rem,6vw,5rem);letter-spacing:-.03em;margin-bottom:48px}
+.big{font-size:clamp(1.6rem,4vw,3.4rem);max-width:20ch;line-height:1.1}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.card{aspect-ratio:4/5;border-radius:20px;background:linear-gradient(160deg,#1b1b27,#0f0f16);border:1px solid #ffffff14}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
