@@ -27,8 +27,8 @@ Agent tools: `git_clone`, `list_dir`, `read_file`, `write_file`, `code_search`, 
 - Chat on the right: the agent lists/reads/writes files; shell commands always ask for your approval.
 - Change the model with `PRISM_MODEL`.
 
-## Roadmap
-Streaming responses, multi-tab editing, diff review, real PTY terminal (node-pty), git panel, MCP servers.
+## Features
+Streaming replies, 7 agent tools (list, read, search, write, edit, run, remember), Monaco diff review before any file change, command approval, multi-tab editor, git status/commit/push, project memory in `PRISM.md`, local (Ollama) or Claude API models.
 
-## UI
-VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirty indicators, quick open (`Ctrl+P`), command palette (`Ctrl+Shift+P`), resizable panels, terminal with history (`` Ctrl+` ``), AI agent panel (`Ctrl+L`), and a status bar with git branch and cursor position.
+## Roadmap
+Real PTY terminal, MCP servers, web search tool, checkpoints/undo.
