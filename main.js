@@ -4,7 +4,7 @@ const path = require('path');
 const { exec, spawn } = require('child_process');
 const { runAgent, listOllamaModels } = require('./agent');
 
-let win, root = null, history = [], rid = 0; const pend = new Map();
+let win, root = null, history = [];
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const setPath = () => path.join(app.getPath('userData'), 'settings.json');
 let settings = { provider: 'ollama', model: 'qwen2.5-coder:7b', recents: [] };
@@ -179,7 +179,6 @@ ipcMain.handle('term', (_, cmd) => new Promise(res => exec(cmd, { cwd: root || u
 
 ipcMain.handle('has-key', (_, p) => !!getKey(p));
 ipcMain.handle('set-key', (_, k, p) => { fs.writeFileSync(keyPath(p), safeStorage.encryptString(k)); return true; });
-ipcMain.handle('review-result', (_, id, ok) => { pend.get(id)?.(ok); pend.delete(id); });
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_, s) => { settings = { ...settings, ...s }; history = []; fs.writeFileSync(setPath(), JSON.stringify(settings)); return settings; });
 ipcMain.handle('models', async () => { try { return await listOllamaModels(); } catch { return []; } });
@@ -210,7 +209,6 @@ ipcMain.handle('agent', async (_, prompt) => {
       signal: agentController.signal,
       setRoot: p => { root = p; win.webContents.send('agent-event', { type: 'workspace', root: p }); },
       emit: ev => win.webContents.send('agent-event', ev),
-      review: (p, o, n) => new Promise(res => { const id = ++rid; pend.set(id, res); win.webContents.send('agent-event', { type: 'review', id, path: p, old: o, new: n }); }),
       approve: async cmd => (await dialog.showMessageBox(win, {
         type: 'question',
         buttons: ['Run', 'Deny'],

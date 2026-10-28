@@ -13,7 +13,7 @@ const api = {
   term: call('term'),
   hasKey: call('has-key'),
   setKey: call('set-key'),
-  agent: call('agent'), reviewResult: call('review-result'),
+  agent: call('agent'),
   stopAgent: call('agent-stop'),
   getSettings: call('get-settings'),
   setSettings: call('set-settings'),
