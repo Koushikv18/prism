@@ -10,6 +10,11 @@ const setPath = () => path.join(app.getPath('userData'), 'settings.json');
 let settings = { provider: 'ollama', model: 'qwen2.5-coder:7b', recents: [] };
 try { settings = { ...settings, ...JSON.parse(fs.readFileSync(setPath(), 'utf8')) }; } catch {}
 if (!Array.isArray(settings.recents)) settings.recents = [];
+if (settings.recents.length && fs.existsSync(settings.recents[0])) {
+  try {
+    if (fs.statSync(settings.recents[0]).isDirectory()) root = settings.recents[0];
+  } catch {}
+}
 
 function addRecent(p) {
   if (!p) return;
@@ -21,8 +26,13 @@ const keyPath = p => path.join(app.getPath('userData'), (p === 'gemini' ? 'gemin
 const getKey = p => (p === 'gemini' ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY) || (fs.existsSync(keyPath(p)) ? safeStorage.decryptString(fs.readFileSync(keyPath(p))) : null);
 
 const inRoot = rel => {
-  const p = path.resolve(root, rel || '.');
-  if (p !== root && !p.startsWith(root + path.sep)) throw new Error('outside workspace');
+  if (!root) throw new Error('No workspace open');
+  const normRoot = path.resolve(root);
+  const p = path.resolve(normRoot, rel || '.');
+  const isInside = process.platform === 'win32'
+    ? (p.toLowerCase() === normRoot.toLowerCase() || p.toLowerCase().startsWith(normRoot.toLowerCase() + path.sep))
+    : (p === normRoot || p.startsWith(normRoot + path.sep));
+  if (!isInside) throw new Error('outside workspace: ' + rel);
   return p;
 };
 
@@ -197,10 +207,11 @@ ipcMain.handle('agent-stop', () => {
   return false;
 });
 
-ipcMain.handle('agent', async (_, prompt) => {
+ipcMain.handle('agent', async (_, prompt, context) => {
   const apiKey = getKey(settings.provider);
   if (settings.provider === 'claude' && !apiKey) return { error: 'Set your Anthropic API key first, or switch provider.' };
   if (settings.provider === 'gemini' && !apiKey) return { error: 'Set your Gemini API key first, or switch provider.' };
+  if (context && context.root && !root) root = context.root;
   history.push({ role: 'user', content: prompt });
   agentController = new AbortController();
   try {
@@ -209,7 +220,8 @@ ipcMain.handle('agent', async (_, prompt) => {
       model: settings.model,
       apiKey,
       messages: history,
-      root,
+      root: root || (context && context.root) || null,
+      context: context || {},
       signal: agentController.signal,
       setRoot: p => { root = p; win.webContents.send('agent-event', { type: 'workspace', root: p }); },
       emit: ev => win.webContents.send('agent-event', ev),

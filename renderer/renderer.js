@@ -494,6 +494,22 @@ prism.onAgent(ev => {
   }
 });
 
+function getIdeContext() {
+  const pos = editor?.getPosition();
+  const sel = editor?.getSelection();
+  const selText = (editor && sel && !sel.isEmpty()) ? editor.getModel()?.getValueInRange(sel) : null;
+  return {
+    root,
+    activeFile: active || null,
+    cursorLine: pos?.lineNumber || null,
+    cursorColumn: pos?.column || null,
+    selectedCode: selText || null,
+    openTabs: [...tabs.keys()],
+    dirtyTabs: [...tabs.entries()].filter(([_, v]) => v.dirty).map(([k]) => k),
+    topFiles: (typeof allFiles !== 'undefined' && Array.isArray(allFiles)) ? allFiles.slice(0, 35) : []
+  };
+}
+
 $('prompt').onkeydown = async e => {
   if (e.key !== 'Enter' || e.shiftKey) return;
   e.preventDefault();
@@ -503,7 +519,7 @@ $('prompt').onkeydown = async e => {
   log(t, 'me');
   await saveAll();
   const busy = log('Thinking…', 'tool');
-  const r = await prism.agent(t);
+  const r = await prism.agent(t, getIdeContext());
   busy.remove();
   if (r.error) log(r.error, 'err');
   refresh();
@@ -657,7 +673,7 @@ async function updateOnboardingStep3() {
     } else {
       sel.innerHTML = '<option value="">No local models installed yet</option>';
     }
-    const recs = ['qwen2.5-coder:7b', 'llama3:8b', 'deepseek-coder:6.7b'];
+    const recs = ['qwen2.5-coder:7b', 'llama3.1:8b', 'deepseek-coder:6.7b'];
     if (quick) {
       recs.forEach(m => {
         const btn = document.createElement('button');
@@ -734,6 +750,17 @@ async function initApp() {
   await renderRecents();
   await checkOnboarding();
   setInterval(checkOllamaHealth, 8000);
+
+  // Auto-restore last workspace if available and no workspace is active
+  try {
+    const recents = await prism.getRecents();
+    if (recents && recents.length && !root) {
+      const res = await prism.openPath(recents[0]);
+      if (res && res.root) {
+        await opened(res.root);
+      }
+    }
+  } catch {}
 }
 initApp();
 
