@@ -35,3 +35,5 @@ VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirt
 
 ## Pro agent tools (branch `pro`)
 `edit_file` (exact-snippet edits), `analyze_repo` (architecture map), `clone_reference` (study a public repo read-only in `.prism/refs/`), `remember` (project memory in `PRISM.md`, re-read every session), 40-step runs, and a reverse-engineering playbook: ask the agent to *"reverse engineer https://github.com/owner/repo"* and it writes `ARCHITECTURE.md` plus a clean-room build plan.
+
+**Self-learning:** after each task the agent calls `learn` to save a short lesson to `~/.prism/learnings.md` (deduped, capped at 100). The newest 40 are loaded into every future session, on every provider.

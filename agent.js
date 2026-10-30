@@ -9,8 +9,11 @@ const SKIP = new Set(['.git', 'node_modules', 'dist', 'build', '.next', '__pycac
 
 const MODEL = process.env.PRISM_MODEL || 'claude-sonnet-5-5';
 const SYSTEM0 = 'You are Prism, an expert coding agent inside a personal IDE. Work inside the open workspace using your tools. Read before editing, make focused changes, run commands to verify, and explain briefly what you did.';
-const SYSTEM = SYSTEM0 + ' Prefer edit_file for small changes and code_search/analyze_repo to explore. Use remember to save durable project facts. REVERSE ENGINEERING: when asked to study a repo, clone_reference it, run analyze_repo, read entry points and core modules, then write ARCHITECTURE.md (purpose, module map, data flow, key algorithms, public API, build/run, trade-offs) and a clean-room build plan. Re-implement from your understanding in your own code; never copy source verbatim; report the license.';
-const memo = r => { try { return '\n\nProject memory (PRISM.md):\n' + fs.readFileSync(path.join(r, 'PRISM.md'), 'utf8').slice(0, 8000); } catch { return ''; } };
+const SYSTEM = SYSTEM0 + ' Prefer edit_file for small changes and code_search/analyze_repo to explore. Use remember to save durable project facts. After every finished task, call learn once with a short durable lesson (what worked, what failed, a user preference, or a command that works) so you improve over time. REVERSE ENGINEERING: when asked to study a repo, clone_reference it, run analyze_repo, read entry points and core modules, then write ARCHITECTURE.md (purpose, module map, data flow, key algorithms, public API, build/run, trade-offs) and a clean-room build plan. Re-implement from your understanding in your own code; never copy source verbatim; report the license.';
+const memo0 = r => { try { return '\n\nProject memory (PRISM.md):\n' + fs.readFileSync(path.join(r, 'PRISM.md'), 'utf8').slice(0, 8000); } catch { return ''; } };
+const LEARN = path.join(os.homedir(), '.prism', 'learnings.md');
+const learned = () => { try { return '\n\nLessons learned (global, auto-saved by you):\n' + fs.readFileSync(LEARN, 'utf8').split('\n').filter(Boolean).slice(-40).join('\n'); } catch { return ''; } };
+const memo = r => memo0(r) + learned();
 
 const TOOLS = [
   { name: 'list_dir', description: 'List files in a workspace-relative directory.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
@@ -21,6 +24,7 @@ const TOOLS = [
   { name: 'edit_file', description: 'Replace one exact, unique snippet in a file (safer than rewriting the whole file).', input_schema: { type: 'object', properties: { path: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['path', 'old', 'new'] } },
   { name: 'analyze_repo', description: 'Map a repo: file counts, languages, manifests, entry points, top dependencies, biggest files, license.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
   { name: 'clone_reference', description: 'Shallow-clone a public GitHub repo into .prism/refs/<name> inside the workspace as a read-only reference to study (does not change the active workspace).', input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } },
+  { name: 'learn', description: 'Save one short, durable lesson to global learnings (loaded in every future session). Call after finishing a task.', input_schema: { type: 'object', properties: { lesson: { type: 'string' } }, required: ['lesson'] } },
   { name: 'remember', description: 'Save a durable project note to PRISM.md (re-read every session).', input_schema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] } },
   { name: 'run_command', description: 'Run a shell command in the workspace root (user must approve).', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } },
 ];
@@ -84,6 +88,13 @@ async function runTool(name, input, ctx) {
       return 'Edited ' + input.path;
     }
     if (name === 'analyze_repo') return analyze(ctx.root, input.path);
+    if (name === 'learn') {
+      const l = String(input.lesson || '').replace(/\s+/g, ' ').trim().slice(0, 300); if (!l) return 'Empty lesson.';
+      fs.mkdirSync(path.dirname(LEARN), { recursive: true });
+      const cur = fs.existsSync(LEARN) ? fs.readFileSync(LEARN, 'utf8').split('\n').filter(Boolean) : [];
+      if (cur.some(x => x.toLowerCase().includes(l.toLowerCase().slice(0, 60)))) return 'Already learned.';
+      fs.writeFileSync(LEARN, cur.concat('- ' + l).slice(-100).join('\n') + '\n'); return 'Learned.';
+    }
     if (name === 'remember') { fs.appendFileSync(path.join(safe(ctx.root, '.'), 'PRISM.md'), '- ' + input.note + '\n'); return 'Saved to PRISM.md'; }
     if (name === 'clone_reference') {
       if (!GH.test(input.url)) return 'Error: only https://github.com/owner/repo URLs are allowed';
