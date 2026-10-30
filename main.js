@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron')
 const fs = require('fs');
 const path = require('path');
 const { exec, spawn } = require('child_process');
-const { runAgent, listOllamaModels, refreshRadar, formatRadar } = require('./agent');
+const { runAgent, listOllamaModels, refreshRadar, formatRadar, inlineEdit, complete } = require('./agent');
 
 let win, root = null, history = [];
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -196,6 +196,32 @@ ipcMain.handle('set-key', (_, k, p) => { fs.writeFileSync(keyPath(p), safeStorag
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_, s) => { settings = { ...settings, ...s }; history = []; fs.writeFileSync(setPath(), JSON.stringify(settings)); return settings; });
 ipcMain.handle('models', async () => { try { return await listOllamaModels(); } catch { return []; } });
+
+// Ctrl+K inline edit (any provider) and ghost-text autocomplete (local Ollama, free)
+ipcMain.handle('inline-edit', async (_, o) => {
+  try {
+    const apiKey = getKey(settings.provider);
+    if (settings.provider !== 'ollama' && !apiKey) return { error: 'Set your ' + settings.provider + ' API key first.' };
+    return { text: await inlineEdit({ ...o, provider: settings.provider, model: settings.model, apiKey }) };
+  } catch (e) { return { error: e.message }; }
+});
+let completionModel = { at: 0, name: null }, noFim = new Set(), completeCtl = null;
+async function pickCompletionModel() {
+  if (Date.now() - completionModel.at < 60000 && completionModel.name) return completionModel.name;
+  let names = []; try { names = await listOllamaModels(); } catch {}
+  const pref = names.find(n => /coder.*(1\.5b|3b)/i.test(n)) || names.find(n => /coder/i.test(n)) || settings.model;
+  completionModel = { at: Date.now(), name: pref }; return pref;
+}
+ipcMain.handle('complete', async (_, o) => {
+  if (settings.provider !== 'ollama' || settings.autocomplete === false) return '';
+  try {
+    if (completeCtl) completeCtl.abort();
+    completeCtl = new AbortController();
+    const model = await pickCompletionModel();
+    if (noFim.has(model)) return '';
+    return await complete({ model, prefix: o.prefix || '', suffix: o.suffix || '', signal: completeCtl.signal });
+  } catch (e) { if (/insert|suffix/i.test(e.message)) noFim.add(completionModel.name); return ''; }
+});
 
 let agentController = null;
 ipcMain.handle('agent-stop', () => {

@@ -4,6 +4,13 @@ const tabs = new Map(); // path -> {model, saved, view}
 let allFiles = [];
 
 /* ---------- Monaco Editor with Cyberpunk Obsidian Theme ---------- */
+// Monaco web workers (IntelliSense, diff, validation) must load through a blob under our CSP
+self.MonacoEnvironment = {
+  getWorkerUrl: () => {
+    const base = new URL('../node_modules/monaco-editor/min/', location.href).href;
+    return URL.createObjectURL(new Blob([`self.MonacoEnvironment={baseUrl:'${base}'};importScripts('${base}vs/base/worker/workerMain.js');`], { type: 'text/javascript' }));
+  }
+};
 require.config({ paths: { vs: '../node_modules/monaco-editor/min/vs' } });
 require(['vs/editor/editor.main'], () => {
   monaco.editor.defineTheme('prism-dark', {
@@ -334,17 +341,22 @@ async function indexFiles(rel = '', out = []) {
   return out;
 }
 
-const refresh = async () => {
+const _doRefresh = async () => {
   if (root) {
     const q = $('filter')?.value || '';
     await tree('', $('tree'), 0, q);
     allFiles = await indexFiles();
   }
 };
-
-$('filter').oninput = e => {
-  if (root) tree('', $('tree'), 0, e.target.value);
+// Serialize refreshes: concurrent runs used to append the tree twice (duplicate entries)
+let _rp = null, _again = false;
+const refresh = () => {
+  if (_rp) { _again = true; return _rp; }
+  _rp = (async () => { try { do { _again = false; await _doRefresh(); } while (_again); } finally { _rp = null; } })();
+  return _rp;
 };
+
+$('filter').oninput = () => { if (root) refresh(); };
 
 /* ---------- Tabs / Files ---------- */
 async function openFile(p) {
@@ -484,14 +496,9 @@ const log = (t, c = 'ai') => {
 };
 
 prism.onAgent(ev => {
-  if (ev.type === 'text') log(ev.text);
-  if (ev.type === 'tool') log('⚙ ' + ev.name + ' ' + JSON.stringify(ev.input).slice(0, 160), 'tool');
-  if (ev.type === 'workspace') opened(ev.root);
-  if (ev.type === 'file_changed') {
-    refresh();
-    const t = tabs.get(ev.path);
-    if (t) prism.read(ev.path).then(x => { t.saved = x; t.model.setValue(x); });
-  }
+  if (ev.type === 'workspace') return opened(ev.root);
+  if (ev.type === 'file_changed') return window.PrismReview ? window.PrismReview.fileChanged(ev) : refresh();
+  if (window.PrismChat) window.PrismChat.handle(ev);
 });
 
 function getIdeContext() {
@@ -514,14 +521,13 @@ $('prompt').onkeydown = async e => {
   if (e.key !== 'Enter' || e.shiftKey) return;
   e.preventDefault();
   const t = e.target.value.trim();
-  if (!t) return;
+  if (!t || PrismChat.busy) return;
   e.target.value = '';
   log(t, 'me');
   await saveAll();
-  const busy = log('Thinking…', 'tool');
-  const r = await prism.agent(t, getIdeContext());
-  busy.remove();
-  if (r.error) log(r.error, 'err');
+  PrismChat.start();
+  let r; try { r = await prism.agent(t, getIdeContext()); } catch (err) { r = { error: err.message }; }
+  PrismChat.end(r);
   refresh();
 };
 

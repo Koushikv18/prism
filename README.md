@@ -32,3 +32,13 @@ Streaming responses, multi-tab editing, diff review, real PTY terminal (node-pty
 
 ## UI
 VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirty indicators, quick open (`Ctrl+P`), command palette (`Ctrl+Shift+P`), resizable panels, terminal with history (`` Ctrl+` ``), AI agent panel (`Ctrl+L`), and a status bar with git branch and cursor position.
+
+## Using Prism like Cursor (free, local)
+1. Install [Ollama](https://ollama.com) and run `ollama pull qwen2.5-coder:7b` (best balance of tool-use and speed; use `qwen2.5-coder:14b`+ if you have 16 GB RAM). Optional faster autocomplete: `ollama pull qwen2.5-coder:1.5b`.
+2. `npm install && npm start`, open a folder, and ask the agent for a task in the right panel.
+- **Agent**: streams its answer live, shows every tool call (expand for output), runs commands only after you approve, and has a Stop button. If the model describes instead of acting, Prism pushes it to use its tools; it accepts common tool-name variants from small models.
+- **Review changes**: every file the agent writes opens in the editor with a bar: **View diff**, **Keep**, **Revert**.
+- **Ctrl+K**: select code (or place the cursor on a line), describe the edit, press Enter. Undo with Ctrl+Z.
+- **Autocomplete**: grey ghost text while you type (local model, Tab to accept). Disable with `settings.autocomplete = false`.
+- **IntelliSense**: TypeScript/JavaScript/CSS/JSON diagnostics and completions via Monaco workers.
+- The model context is 16K tokens; very small models (under 7B) may still struggle with multi-file tasks, so switch to Gemini or Claude from the provider menu for those.

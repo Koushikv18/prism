@@ -125,7 +125,17 @@ function auditProject(root) {
   return 'Audit of ' + files.length + ' files: ' + c('high') + ' high, ' + c('medium') + ' medium, ' + c('low') + ' low.\n' + (out.slice(0, 40).map(i => '[' + i.sev + '] ' + i.msg).join('\n') || 'No issues found.');
 }
 
+const ALIASES = { create_file: 'write_file', write: 'write_file', edit_file: 'write_file', save_file: 'write_file', update_file: 'write_file', cat: 'read_file', open_file: 'read_file', view_file: 'read_file', ls: 'list_dir', list_files: 'list_dir', list_directory: 'list_dir', search: 'code_search', grep: 'code_search', search_code: 'code_search', shell: 'run_command', bash: 'run_command', exec: 'run_command', run: 'run_command', terminal: 'run_command' };
+const ARG_ALIASES = { file_path: 'path', filepath: 'path', filename: 'path', file: 'path', directory: 'path', dir_path: 'path', contents: 'content', text: 'content', code: 'content', body: 'content', cmd: 'command', shell_command: 'command', regex: 'query', pattern: 'query', search: 'query' };
+function normalizeCall(name, input) {
+  const n = ALIASES[name] || name, out = {};
+  for (const [k, v] of Object.entries(input && typeof input === 'object' ? input : {})) out[(ARG_ALIASES[k] && !(ARG_ALIASES[k] in (input || {}))) ? ARG_ALIASES[k] : k] = v;
+  if (n === 'list_dir' && out.path == null) out.path = '.';
+  return [n, out];
+}
+
 async function runTool(name, input, ctx) {
+  [name, input] = normalizeCall(name, input);
   try {
     if (name === 'list_dir') {
       return fs.readdirSync(safe(ctx.root, input.path), { withFileTypes: true })
@@ -143,10 +153,13 @@ async function runTool(name, input, ctx) {
       }
     }
     if (name === 'write_file') {
+      if (typeof input.path !== 'string' || typeof input.content !== 'string') return 'Error: write_file needs string arguments "path" and "content".';
+      let before = null; try { const bp = safe(ctx.root, input.path); if (fs.existsSync(bp)) { const bs = fs.statSync(bp); before = bs.size < 500000 ? fs.readFileSync(bp, 'utf8') : null; } } catch {}
+      ctx.before = before;
       const p = safe(ctx.root, input.path);
       fs.mkdirSync(path.dirname(p), { recursive: true });
       fs.writeFileSync(p, input.content);
-      ctx.emit({ type: 'file_changed', path: input.path });
+      ctx.emit({ type: 'file_changed', path: input.path, before, isNew: before === null });
       return 'Successfully wrote ' + input.path + ' (' + Buffer.byteLength(input.content) + ' bytes)';
     }
     if (name === 'git_clone') {
@@ -356,65 +369,136 @@ function extractToolCall(content, toolNames) {
 }
 
 // Local, free, offline: talks to Ollama's /api/chat with tool calling.
+// ---- Local model (Ollama) engine: streaming, big context, self-correcting tool loop ----
+const OLLAMA_OPTS = { num_ctx: 16384, temperature: 0.2 };
+const ACTION_RE = /\b(create|build|make|add|write|implement|fix|refactor|update|change|rename|delete|remove|install|set ?up|generate|convert|optimi[sz]e|scaffold|clone|replicate|improve|redesign|develop|code)\b/i;
+
+async function ollamaChat(body, signal, onDelta) {
+  let r;
+  try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ ...body, stream: true, keep_alive: '30m' }) }); }
+  catch (e) {
+    if (signal && signal.aborted) throw new Error('Agent stopped by user');
+    throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Start it (open the Ollama app or run "ollama serve").');
+  }
+  if (!r.ok) {
+    let msg = ''; try { msg = (await r.json()).error || ''; } catch {}
+    if (/not found/i.test(msg)) throw new Error('Model "' + body.model + '" is not installed. Run:  ollama pull ' + body.model);
+    throw new Error(msg || 'Ollama error HTTP ' + r.status);
+  }
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = '', content = '', calls = [];
+  const eat = line => {
+    line = line.trim(); if (!line) return;
+    let j; try { j = JSON.parse(line); } catch { return; }
+    if (j.error) throw new Error(j.error);
+    const m = j.message || {};
+    if (m.content) { content += m.content; onDelta(m.content); }
+    if (m.tool_calls) calls.push(...m.tool_calls);
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i; while ((i = buf.indexOf('\n')) >= 0) { eat(buf.slice(0, i)); buf = buf.slice(i + 1); }
+  }
+  eat(buf);
+  return { role: 'assistant', content, ...(calls.length ? { tool_calls: calls } : {}) };
+}
+
+function trimHistory(messages) {
+  const keepFrom = Math.max(1, messages.length - 8);
+  for (let i = 1; i < keepFrom; i++) { // shrink old bulky tool output
+    const m = messages[i];
+    if ((m.role === 'tool' || (m.role === 'user' && /^Tool .* result:/.test(m.content || ''))) && m.content.length > 1200) m.content = m.content.slice(0, 1200) + '\n…[trimmed]';
+  }
+  let total = messages.reduce((n, m) => n + (m.content || '').length, 0);
+  while (total > 48000 && messages.length > 4) { const [d] = messages.splice(1, 1); total -= (d.content || '').length; }
+}
+
 async function runOllama({ model, messages, root, context, approve, emit, setRoot, signal }) {
   const ctx = { root, context, approve, emit, setRoot };
   const sys = buildSystemPrompt(root, context);
-  if (!messages.length || messages[0].role !== 'system') {
-    messages.unshift({ role: 'system', content: sys });
-  } else {
-    messages[0].content = sys;
-  }
+  if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: sys });
+  else messages[0].content = sys;
   const tools = TOOLS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
-  const toolNames = new Set(TOOLS.map(t => t.name));
-  for (let step = 0; step < 25; step++) {
-    if (signal?.aborted) throw new Error('Agent stopped by user');
-    let r;
-    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages, tools, stream: false }) }); }
-    catch (e) {
-      if (signal?.aborted) throw new Error('Agent stopped by user');
-      throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.');
-    }
-    const data = await r.json();
-    if (data.error) throw new Error(data.error);
-    const m = data.message;
+  const toolNames = new Set([...TOOLS.map(t => t.name), ...Object.keys(ALIASES)]);
+  const lastUser = [...messages].reverse().find(m => m.role === 'user' && !/^Tool .* result:/.test(m.content || ''));
+  const wantsAction = ACTION_RE.test((lastUser && lastUser.content) || '');
+  let usedTools = false, nudges = 0, lastSig = '', repeats = 0;
+  for (let step = 0; step < 40; step++) {
+    if (signal && signal.aborted) throw new Error('Agent stopped by user');
+    trimHistory(messages);
+    let streamed = '', muted = false;
+    const m = await ollamaChat({ model, messages, tools, options: OLLAMA_OPTS }, signal, d => {
+      streamed += d;
+      if (!muted && /```|\{\s*"|<tool_call>|^\s*\[/.test(streamed)) muted = true; // don't stream raw JSON tool calls
+      if (!muted) emit({ type: 'delta', text: d });
+    });
     messages.push(m);
 
-    let calls = m.tool_calls || [];
-    let textToEmit = m.content || '';
-    let isExtracted = false;
-
-    // If Ollama didn't extract tool_calls automatically, check if content has JSON tool call
-    if (!calls.length && m.content) {
-      const found = extractToolCall(m.content, toolNames);
+    let calls = m.tool_calls || [], text = m.content || '', extracted = false;
+    if (!calls.length && text) {
+      const found = extractToolCall(text, toolNames);
       if (found) {
-        calls = [{ function: { name: found.name, arguments: found.input } }];
-        isExtracted = true;
-        const firstBrace = m.content.indexOf('{');
-        let pre = firstBrace !== -1 ? m.content.slice(0, firstBrace).trim() : '';
-        pre = pre.replace(/```(?:json)?/gi, '').trim();
-        textToEmit = pre;
+        calls = [{ function: { name: found.name, arguments: found.input } }]; extracted = true;
+        const fb = text.indexOf('{'); text = (fb > 0 ? text.slice(0, fb) : '').replace(/```(?:json)?/gi, '').trim();
       }
     }
+    emit({ type: 'final', text });
 
-    if (textToEmit) emit({ type: 'text', text: textToEmit });
-    if (!calls.length) return messages;
-
-    for (const c of calls) {
-      if (signal?.aborted) throw new Error('Agent stopped by user');
-      const name = c.function.name;
-      const args = typeof c.function.arguments === 'string' ? JSON.parse(c.function.arguments) : (c.function.arguments || {});
-      const tid = c.id || ('tool_' + Math.random().toString(36).slice(2, 8));
-      emit({ type: 'tool', id: tid, name, input: args });
-      const out = await runTool(name, args, ctx);
-      emit({ type: 'tool_result', id: tid, name, output: out });
-      if (isExtracted) {
-        messages.push({ role: 'user', content: `Tool ${name} result:\n${out}` });
-      } else {
-        messages.push({ role: 'tool', tool_name: name, content: out });
+    if (!calls.length) {
+      // Model described instead of acting: push it to actually use the tools (max 2 times)
+      if (wantsAction && !usedTools && nudges < 2) {
+        nudges++;
+        messages.push({ role: 'user', content: 'You have not used any tools yet. Do the task now by calling the tools (write_file, run_command, read_file...). Do not just describe it or paste code in your reply.' });
+        continue;
       }
+      return messages;
+    }
+    usedTools = true;
+    for (const c of calls) {
+      if (signal && signal.aborted) throw new Error('Agent stopped by user');
+      const name = c.function.name;
+      let args = c.function.arguments;
+      let out;
+      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = null; out = 'Error: tool arguments were not valid JSON. Call the tool again with valid JSON arguments.'; } }
+      const tid = c.id || ('tool_' + Math.random().toString(36).slice(2, 8));
+      emit({ type: 'tool', id: tid, name, input: args || {} });
+      const sig = name + JSON.stringify(args);
+      repeats = sig === lastSig ? repeats + 1 : 0; lastSig = sig;
+      if (out === undefined) out = repeats >= 2 ? 'Error: you already made this exact call several times. Try a different approach or finish and report what you found.' : await runTool(name, args || {}, ctx);
+      emit({ type: 'tool_result', id: tid, name, output: out });
+      messages.push(extracted ? { role: 'user', content: 'Tool ' + name + ' result:\n' + out } : { role: 'tool', tool_name: name, content: out });
     }
   }
+  emit({ type: 'text', text: 'Stopped after 40 steps. Tell me to continue if the task is not finished.' });
   return messages;
+}
+
+// ---- One-shot helpers: Ctrl+K inline edit and ghost-text autocomplete ----
+const stripFence = s => { const m = String(s).match(/```[\w-]*\n([\s\S]*?)```/); return (m ? m[1] : String(s)).replace(/\n$/, ''); };
+async function oneShot({ provider, model, apiKey, system, user, signal }) {
+  if (provider === 'claude') {
+    const r = await (await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: model || MODEL, max_tokens: 4096, system, messages: [{ role: 'user', content: user }] }) })).json();
+    if (r.error) throw new Error(r.error.message); return r.content.map(b => b.text || '').join('');
+  }
+  if (provider === 'gemini') {
+    const r = await (await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', { method: 'POST', signal, headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }] }) })).json();
+    if (r.error) throw new Error(r.error.message); return (r.candidates[0].content.parts || []).map(p => p.text || '').join('');
+  }
+  const r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, stream: false, keep_alive: '30m', options: OLLAMA_OPTS, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
+  const j = await r.json(); if (j.error) throw new Error(/not found/i.test(j.error) ? 'Model "' + model + '" is not installed. Run: ollama pull ' + model : j.error);
+  return j.message.content;
+}
+async function inlineEdit(opts) {
+  const system = 'You are a precise code editor. Rewrite the SELECTED CODE according to the instruction. Return ONLY the replacement code that will substitute the selection: no explanations, no markdown fences, keep the existing indentation and style.';
+  const user = 'File: ' + (opts.filePath || 'untitled') + ' (' + (opts.language || 'text') + ')\n\nCODE BEFORE SELECTION:\n' + (opts.before || '') + '\n\nSELECTED CODE:\n' + opts.code + '\n\nCODE AFTER SELECTION:\n' + (opts.after || '') + '\n\nINSTRUCTION: ' + opts.instruction;
+  return stripFence(await oneShot({ ...opts, system, user }));
+}
+async function complete({ model, prefix, suffix, signal }) {
+  const r = await fetch(OLLAMA + '/api/generate', { method: 'POST', signal, body: JSON.stringify({ model, prompt: prefix.slice(-3000), suffix: (suffix || '').slice(0, 1000), stream: false, keep_alive: '30m', options: { num_ctx: 4096, temperature: 0.1, num_predict: 96, stop: ['\n\n\n'] } }) });
+  const j = await r.json(); if (j.error) throw new Error(j.error);
+  return j.response || '';
 }
 
 // Google Gemini via REST function calling (no extra dependency).
@@ -456,4 +540,4 @@ function runAgent(opts) {
   return opts.provider === 'claude' ? runClaude(opts) : opts.provider === 'gemini' ? runGemini(opts) : runOllama(opts);
 }
 
-module.exports = { runAgent, listOllamaModels, runTool, refreshRadar, formatRadar };
+module.exports = { runAgent, listOllamaModels, runTool, refreshRadar, formatRadar, inlineEdit, complete };

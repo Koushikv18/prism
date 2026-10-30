@@ -18,6 +18,8 @@ const api = {
   getSettings: call('get-settings'),
   setSettings: call('set-settings'),
   models: call('models'),
+  inlineEdit: call('inline-edit'),
+  complete: call('complete'),
   radar: call('radar'),
 
   // Ollama Orchestration
