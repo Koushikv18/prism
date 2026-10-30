@@ -186,23 +186,35 @@ async function listOllamaModels() {
 }
 
 // Local, free, offline: talks to Ollama's /api/chat with tool calling.
+const LOCAL = ' LOCAL-MODEL RULES: always act with tools instead of describing what you would do; make ONE tool call at a time; after a tool result decide the next step; keep replies short; if a tool errors, read the error and try a different approach; never invent file contents, read first.';
+function parseInlineCalls(text) { // small local models often print tool calls as JSON text instead of using tool_calls
+  const names = TOOLS.map(t => t.name), out = [];
+  const cands = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map(x => x[1]); cands.push(text);
+  for (const c of cands) { try { const j = JSON.parse(c.trim());
+    for (const o of Array.isArray(j) ? j : [j]) { const name = o.name || o.tool || (o.function && o.function.name); const args = o.arguments || o.parameters || o.input || (o.function && o.function.arguments) || {};
+      if (names.includes(name)) out.push({ function: { name, arguments: args } }); }
+    if (out.length) return out; } catch {} }
+  return out;
+}
+const trimCtx = ms => { const out = []; let n = 0; for (let i = ms.length - 1; i > 0; i--) { n += JSON.stringify(ms[i]).length; if (n > 40000) break; out.unshift(ms[i]); } while (out.length && out[0].role === 'tool') out.shift(); return [ms[0], ...out]; };
 async function runOllama({ model, messages, root, approve, emit, setRoot, signal }) {
   const ctx = { root, approve, emit, setRoot };
-  if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: SYSTEM + '\nWorkspace: ' + root + memo(root) });
+  if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: SYSTEM + LOCAL + '\nWorkspace: ' + root + memo(root) });
   const tools = TOOLS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
   for (let step = 0; step < 40; step++) {
     if (signal?.aborted) throw new Error('Agent stopped by user');
     let r;
-    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages, tools, stream: false }) }); }
+    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages: trimCtx(messages), tools, stream: false, options: { num_ctx: 16384, temperature: 0.2 } }) }); }
     catch (e) {
       if (signal?.aborted) throw new Error('Agent stopped by user');
       throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.');
     }
     const data = await r.json();
     if (data.error) throw new Error(data.error);
-    const m = data.message;
+    const m = data.message; let fromText = false;
+    if ((!m.tool_calls || !m.tool_calls.length) && m.content) { const fc = parseInlineCalls(m.content); if (fc.length) { m.tool_calls = fc; fromText = true; } }
     messages.push(m);
-    if (m.content) emit({ type: 'text', text: m.content });
+    if (m.content && !fromText) emit({ type: 'text', text: m.content });
     if (!m.tool_calls || !m.tool_calls.length) return messages;
     for (const c of m.tool_calls) {
       if (signal?.aborted) throw new Error('Agent stopped by user');
@@ -256,4 +268,5 @@ function runAgent(opts) {
   return opts.provider === 'claude' ? runClaude(opts) : opts.provider === 'gemini' ? runGemini(opts) : runOllama(opts);
 }
 
-module.exports = { runAgent, listOllamaModels, runTool };
+const recommendModel = () => { const g = require('os').totalmem() / 2 ** 30; return g < 8 ? 'qwen2.5-coder:3b' : g < 16 ? 'qwen2.5-coder:7b' : g < 32 ? 'qwen2.5-coder:14b' : 'qwen2.5-coder:32b'; };
+module.exports = { recommendModel, runAgent, listOllamaModels, runTool };

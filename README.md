@@ -42,3 +42,6 @@ VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirt
 - `undo_last_change`: restores the previous content of the last file the agent wrote or edited (50-step history in `~/.prism/checkpoints.json`).
 - `semantic_search`: ranks code chunks for a plain-English query (local TF-IDF, no embeddings).
 - **Try it with a real model:** `node scripts/selftest.js` (set `PRISM_PROVIDER` / `PRISM_MODEL`, plus `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` for cloud). It asks the agent to write and run a tiny project, then prints pass/fail.
+
+## Fully local (no Anthropic / Gemini needed)
+`node scripts/setup-local.js` picks a coding model that fits your RAM and pulls it with Ollama. The local agent loop now recovers tool calls that small models print as JSON text, trims context to fit, and runs with a 16k window and low temperature. Verify with `node scripts/selftest.js`.
