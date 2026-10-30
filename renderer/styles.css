@@ -1,19 +1,19 @@
 :root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #21262d;
-  --bg-hover: #262c36;
-  --line: #30363d;
-  --line-subtle: #21262d;
-  --fg: #e6edf3;
-  --mut: #8b949e;
-  --acc: #58a6ff;
-  --acc-hover: #79c0ff;
-  --acc-bg: rgba(56, 139, 253, 0.15);
-  --sel: #1f242c;
-  --ok: #3fb950;
-  --err: #f85149;
-  --warn: #d29922;
+  --bg: #0e1013;
+  --bg2: #14171c;
+  --bg3: #1a1e24;
+  --bg-hover: #20252c;
+  --line: #2a2f37;
+  --line-subtle: #1f242b;
+  --fg: #e8eaed;
+  --mut: #8b93a1;
+  --acc: #4c8dff;
+  --acc-hover: #6ba0ff;
+  --acc-bg: #16243d;
+  --sel: #1c2430;
+  --ok: #34c26b;
+  --err: #f0524f;
+  --warn: #e0a526;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "SF Mono", monospace;
@@ -168,7 +168,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px var(--line);
   min-width: 180px;
   padding: 4px;
   z-index: 100;
@@ -219,7 +219,7 @@ button, input, select, textarea {
 }
 .status-dot.online {
   background: var(--ok);
-  box-shadow: 0 0 6px rgba(63, 185, 80, 0.4);
+  box-shadow: none;
 }
 .status-dot.offline {
   background: var(--err);
@@ -271,7 +271,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px var(--line);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -834,9 +834,9 @@ button, input, select, textarea {
 }
 
 .btn-danger {
-  background: rgba(248, 81, 73, 0.15);
+  background: #3a1d22;
   color: var(--err);
-  border-color: rgba(248, 81, 73, 0.4);
+  border-color: #7a2f33;
 }
 .btn-danger:hover {
   background: var(--err);
@@ -873,8 +873,8 @@ button, input, select, textarea {
 }
 .msg.err {
   color: var(--err);
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  background: #2a1a1e;
+  border: 1px solid #5a2a2e;
 }
 
 /* Markdown styling in messages */
@@ -1125,7 +1125,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
   max-height: 180px;
   overflow: hidden;
   display: flex;
@@ -1196,7 +1196,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1256,7 +1256,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 1px var(--line);
   z-index: 90;
   overflow: hidden;
 }
@@ -1295,3 +1295,8 @@ button, input, select, textarea {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--mut); }
+
+/* Prism Pro Ultra: flat, solid-color finish */
+.brand span:first-of-type { font-weight: 700; letter-spacing: 0.01em; }
+.brand .badge { margin-left: 8px; padding: 1px 7px; border-radius: 3px; background: var(--acc); color: #0e1013; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+button, .btn { transition: background-color 0.12s, border-color 0.12s; }
