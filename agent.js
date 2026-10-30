@@ -24,6 +24,8 @@ const TOOLS = [
   { name: 'edit_file', description: 'Replace one exact, unique snippet in a file (safer than rewriting the whole file).', input_schema: { type: 'object', properties: { path: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['path', 'old', 'new'] } },
   { name: 'analyze_repo', description: 'Map a repo: file counts, languages, manifests, entry points, top dependencies, biggest files, license.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
   { name: 'clone_reference', description: 'Shallow-clone a public GitHub repo into .prism/refs/<name> inside the workspace as a read-only reference to study (does not change the active workspace).', input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } },
+  { name: 'semantic_search', description: 'Find the most relevant code chunks for a natural-language query (TF-IDF ranking across the workspace).', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
+  { name: 'undo_last_change', description: 'Undo the most recent file write/edit made by the agent (checkpoint restore).', input_schema: { type: 'object', properties: {} } },
   { name: 'learn', description: 'Save one short, durable lesson to global learnings (loaded in every future session). Call after finishing a task.', input_schema: { type: 'object', properties: { lesson: { type: 'string' } }, required: ['lesson'] } },
   { name: 'remember', description: 'Save a durable project note to PRISM.md (re-read every session).', input_schema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] } },
   { name: 'run_command', description: 'Run a shell command in the workspace root (user must approve).', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } },
@@ -51,6 +53,21 @@ function analyze(root, rel) {
   return `Files: ${n}\nLanguages: ${top(ext, 10)}\nManifests: ${man.slice(0, 15).join(', ')}\nEntry candidates: ${ent.slice(0, 15).join(', ')}\nTop dependencies: ${top(imp, 25)}\nLargest files: ${big.sort((a, b) => b[1] - a[1]).slice(0, 10).map(([a, b]) => `${a} (${b}B)`).join(', ')}\nLicense: ${lic || 'none found'}`;
 }
 
+const CP = path.join(os.homedir(), '.prism', 'checkpoints.json');
+const readCP = () => { try { return JSON.parse(fs.readFileSync(CP, 'utf8')); } catch { return []; } };
+const snap = (p, rel) => { try { const st = readCP(); st.push({ p, rel, old: fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null, t: Date.now() }); fs.mkdirSync(path.dirname(CP), { recursive: true }); fs.writeFileSync(CP, JSON.stringify(st.slice(-50))); } catch {} };
+const toks = s => s.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().match(/[a-z][a-z0-9]{2,}/g) || [];
+function semSearch(root, q) { // local TF-IDF over 40-line chunks (keyword-weighted, no embeddings)
+  const chunks = [];
+  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name) || e.name === '.prism') continue; const f = path.join(d, e.name);
+    if (e.isDirectory()) { walk(f); continue; } if (chunks.length > 6000 || !/\.(js|jsx|ts|tsx|py|go|rs|java|c|cpp|h|cs|rb|php|md|json|html|css|sh)$/i.test(e.name)) continue;
+    let t; try { if (fs.statSync(f).size > 200000) continue; t = fs.readFileSync(f, 'utf8').split('\n'); } catch { continue; }
+    for (let i = 0; i < t.length; i += 40) { const tx = t.slice(i, i + 50).join('\n'); chunks.push({ f: path.relative(root, f), l: i + 1, tx, tf: toks(tx).reduce((m, w) => (m[w] = (m[w] || 0) + 1, m), {}) }); } } };
+  walk(root); const df = {}; for (const c of chunks) for (const w in c.tf) df[w] = (df[w] || 0) + 1;
+  const qs = toks(q), N = chunks.length || 1;
+  return chunks.map(c => ({ c, s: qs.reduce((a, w) => a + (c.tf[w] ? (1 + Math.log(c.tf[w])) * Math.log(1 + N / df[w]) : 0), 0) })).filter(x => x.s > 0)
+    .sort((a, b) => b.s - a.s).slice(0, 5).map(x => `${x.c.f}:${x.c.l}\n${x.c.tx.slice(0, 500)}`).join('\n---\n') || 'No matches.';
+}
 async function runTool(name, input, ctx) {
   try {
     if (name === 'list_dir') {
@@ -62,6 +79,7 @@ async function runTool(name, input, ctx) {
     if (name === 'write_file') {
       const p = safe(ctx.root, input.path);
       fs.mkdirSync(path.dirname(p), { recursive: true });
+      snap(p, input.path);
       fs.writeFileSync(p, input.content);
       ctx.emit({ type: 'file_changed', path: input.path });
       return 'Wrote ' + input.path;
@@ -84,10 +102,16 @@ async function runTool(name, input, ctx) {
     if (name === 'edit_file') {
       const p = safe(ctx.root, input.path), t = fs.readFileSync(p, 'utf8'), n = t.split(input.old).length - 1;
       if (n !== 1) return `Error: snippet matched ${n} times; it must match exactly once.`;
-      fs.writeFileSync(p, t.replace(input.old, () => input.new)); ctx.emit({ type: 'file_changed', path: input.path });
+      snap(p, input.path); fs.writeFileSync(p, t.replace(input.old, () => input.new)); ctx.emit({ type: 'file_changed', path: input.path });
       return 'Edited ' + input.path;
     }
     if (name === 'analyze_repo') return analyze(ctx.root, input.path);
+    if (name === 'semantic_search') return semSearch(safe(ctx.root, '.'), String(input.query || ''));
+    if (name === 'undo_last_change') {
+      const st = readCP(), c = st.pop(); if (!c) return 'Nothing to undo.';
+      const p = safe(ctx.root, path.relative(ctx.root, c.p)); c.old === null ? fs.rmSync(p, { force: true }) : fs.writeFileSync(p, c.old);
+      fs.writeFileSync(CP, JSON.stringify(st)); ctx.emit({ type: 'file_changed', path: c.rel }); return 'Restored ' + c.rel;
+    }
     if (name === 'learn') {
       const l = String(input.lesson || '').replace(/\s+/g, ' ').trim().slice(0, 300); if (!l) return 'Empty lesson.';
       fs.mkdirSync(path.dirname(LEARN), { recursive: true });

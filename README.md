@@ -37,3 +37,8 @@ VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirt
 `edit_file` (exact-snippet edits), `analyze_repo` (architecture map), `clone_reference` (study a public repo read-only in `.prism/refs/`), `remember` (project memory in `PRISM.md`, re-read every session), 40-step runs, and a reverse-engineering playbook: ask the agent to *"reverse engineer https://github.com/owner/repo"* and it writes `ARCHITECTURE.md` plus a clean-room build plan.
 
 **Self-learning:** after each task the agent calls `learn` to save a short lesson to `~/.prism/learnings.md` (deduped, capped at 100). The newest 40 are loaded into every future session, on every provider.
+
+## Undo, code search, self-test (branch `pro`)
+- `undo_last_change`: restores the previous content of the last file the agent wrote or edited (50-step history in `~/.prism/checkpoints.json`).
+- `semantic_search`: ranks code chunks for a plain-English query (local TF-IDF, no embeddings).
+- **Try it with a real model:** `node scripts/selftest.js` (set `PRISM_PROVIDER` / `PRISM_MODEL`, plus `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` for cloud). It asks the agent to write and run a tiny project, then prints pass/fail.
