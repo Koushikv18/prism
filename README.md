@@ -45,3 +45,6 @@ VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirt
 
 ## Fully local (no Anthropic / Gemini needed)
 `node scripts/setup-local.js` picks a coding model that fits your RAM and pulls it with Ollama. The local agent loop now recovers tool calls that small models print as JSON text, trims context to fit, and runs with a 16k window and low temperature. Verify with `node scripts/selftest.js`.
+
+## Self-correction (branch `pro`)
+Every file the agent writes is syntax-checked (`.js`, `.py`, `.json`) and the result is fed straight back so the model can fix its own mistakes. Repeating the same tool call 3 times triggers a "try something else" nudge. Context window: `PRISM_CTX` (default 12288; lower it to 8192 if your GPU runs out of memory).

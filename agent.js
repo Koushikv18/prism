@@ -68,8 +68,20 @@ function semSearch(root, q) { // local TF-IDF over 40-line chunks (keyword-weigh
   return chunks.map(c => ({ c, s: qs.reduce((a, w) => a + (c.tf[w] ? (1 + Math.log(c.tf[w])) * Math.log(1 + N / df[w]) : 0), 0) })).filter(x => x.s > 0)
     .sort((a, b) => b.s - a.s).slice(0, 5).map(x => `${x.c.f}:${x.c.l}\n${x.c.tx.slice(0, 500)}`).join('\n---\n') || 'No matches.';
 }
+function verify(p) { // auto-check syntax after every write so the model can self-correct
+  try { const x = path.extname(p).toLowerCase();
+    if (x === '.json') { JSON.parse(fs.readFileSync(p, 'utf8')); return ' [json ok]'; }
+    const c = ['.js', '.mjs', '.cjs'].includes(x) ? ['node', ['--check', p]] : x === '.py' ? ['python3', ['-m', 'py_compile', p]] : null;
+    if (!c) return '';
+    const r = require('child_process').spawnSync(c[0], c[1], { encoding: 'utf8', timeout: 15000 });
+    if (r.error) return '';
+    return r.status === 0 ? ' [syntax ok]' : ' [SYNTAX ERROR, fix it]\n' + (r.stderr || '').slice(0, 800);
+  } catch (e) { return ' [SYNTAX ERROR, fix it] ' + e.message.slice(0, 300); }
+}
 async function runTool(name, input, ctx) {
   try {
+    const key = name + JSON.stringify(input); ctx.recent = (ctx.recent || []).concat(key).slice(-3);
+    if (ctx.recent.length === 3 && ctx.recent.every(k => k === key)) return 'You repeated the same call 3 times. Stop and try a different approach.';
     if (name === 'list_dir') {
       return fs.readdirSync(safe(ctx.root, input.path), { withFileTypes: true })
         .filter(e => e.name !== 'node_modules' && e.name !== '.git')
@@ -82,7 +94,7 @@ async function runTool(name, input, ctx) {
       snap(p, input.path);
       fs.writeFileSync(p, input.content);
       ctx.emit({ type: 'file_changed', path: input.path });
-      return 'Wrote ' + input.path;
+      return 'Wrote ' + input.path + verify(p);
     }
     if (name === 'git_clone') {
       if (!GH.test(input.url)) return 'Error: only https://github.com/owner/repo URLs are allowed';
@@ -103,7 +115,7 @@ async function runTool(name, input, ctx) {
       const p = safe(ctx.root, input.path), t = fs.readFileSync(p, 'utf8'), n = t.split(input.old).length - 1;
       if (n !== 1) return `Error: snippet matched ${n} times; it must match exactly once.`;
       snap(p, input.path); fs.writeFileSync(p, t.replace(input.old, () => input.new)); ctx.emit({ type: 'file_changed', path: input.path });
-      return 'Edited ' + input.path;
+      return 'Edited ' + input.path + verify(p);
     }
     if (name === 'analyze_repo') return analyze(ctx.root, input.path);
     if (name === 'semantic_search') return semSearch(safe(ctx.root, '.'), String(input.query || ''));
@@ -204,7 +216,7 @@ async function runOllama({ model, messages, root, approve, emit, setRoot, signal
   for (let step = 0; step < 40; step++) {
     if (signal?.aborted) throw new Error('Agent stopped by user');
     let r;
-    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages: trimCtx(messages), tools, stream: false, options: { num_ctx: 16384, temperature: 0.2 } }) }); }
+    try { r = await fetch(OLLAMA + '/api/chat', { method: 'POST', signal, body: JSON.stringify({ model, messages: trimCtx(messages), tools, stream: false, options: { num_ctx: +process.env.PRISM_CTX || 12288, temperature: 0.2 } }) }); }
     catch (e) {
       if (signal?.aborted) throw new Error('Agent stopped by user');
       throw new Error('Cannot reach Ollama at ' + OLLAMA + '. Install it from ollama.com and make sure it is running.');
