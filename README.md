@@ -32,3 +32,6 @@ Streaming responses, multi-tab editing, diff review, real PTY terminal (node-pty
 
 ## UI
 VS Code/Cursor-style layout: activity bar, explorer, multi-tab editing with dirty indicators, quick open (`Ctrl+P`), command palette (`Ctrl+Shift+P`), resizable panels, terminal with history (`` Ctrl+` ``), AI agent panel (`Ctrl+L`), and a status bar with git branch and cursor position.
+
+## Pro agent tools (branch `pro`)
+`edit_file` (exact-snippet edits), `analyze_repo` (architecture map), `clone_reference` (study a public repo read-only in `.prism/refs/`), `remember` (project memory in `PRISM.md`, re-read every session), 40-step runs, and a reverse-engineering playbook: ask the agent to *"reverse engineer https://github.com/owner/repo"* and it writes `ARCHITECTURE.md` plus a clean-room build plan.
