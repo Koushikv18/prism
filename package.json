@@ -1,6 +1,6 @@
 {
   "name": "prism",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Prism: AI code editor",
   "main": "main.js",
   "scripts": {

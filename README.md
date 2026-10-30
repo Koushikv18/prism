@@ -1,5 +1,7 @@
 # Prism
 
+> **Prism Pro Ultra** (v0.3.0): local-first agent with edit/search/undo tools, reverse engineering, self-learning, self-correction and a real-model self-test.
+
 A personal AI coding IDE for your own laptop: Monaco editor, file tree, terminal, and a Claude-powered agent that can read, write and run code in any folder or repo you open.
 
 ## Run
