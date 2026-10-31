@@ -1,19 +1,19 @@
 :root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #21262d;
-  --bg-hover: #262c36;
-  --line: #30363d;
-  --line-subtle: #21262d;
-  --fg: #e6edf3;
-  --mut: #8b949e;
-  --acc: #58a6ff;
-  --acc-hover: #79c0ff;
-  --acc-bg: rgba(56, 139, 253, 0.15);
-  --sel: #1f242c;
-  --ok: #3fb950;
-  --err: #f85149;
-  --warn: #d29922;
+  --bg: #0e1013;
+  --bg2: #14171c;
+  --bg3: #1a1e24;
+  --bg-hover: #20252c;
+  --line: #2a2f37;
+  --line-subtle: #1f242b;
+  --fg: #e8eaed;
+  --mut: #8b93a1;
+  --acc: #4c8dff;
+  --acc-hover: #6ba0ff;
+  --acc-bg: #16243d;
+  --sel: #1c2430;
+  --ok: #34c26b;
+  --err: #f0524f;
+  --warn: #e0a526;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "SF Mono", monospace;
@@ -85,7 +85,7 @@ button, input, select, textarea {
 }
 .btn.primary {
   background: var(--acc);
-  color: #0d1117;
+  color: #0e1013;
   font-weight: 600;
   border-color: var(--acc);
 }
@@ -168,7 +168,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px var(--line);
   min-width: 180px;
   padding: 4px;
   z-index: 100;
@@ -219,7 +219,7 @@ button, input, select, textarea {
 }
 .status-dot.online {
   background: var(--ok);
-  box-shadow: 0 0 6px rgba(63, 185, 80, 0.4);
+  box-shadow: none;
 }
 .status-dot.offline {
   background: var(--err);
@@ -271,7 +271,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px var(--line);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -428,14 +428,14 @@ button, input, select, textarea {
   height: 14px;
   color: var(--mut);
 }
-.row .file-icon.ts, .row .file-icon.tsx { color: #58a6ff; }
+.row .file-icon.ts, .row .file-icon.tsx { color: #4c8dff; }
 .row .file-icon.js, .row .file-icon.jsx { color: #e3b341; }
 .row .file-icon.json { color: #bc8cff; }
 .row .file-icon.md { color: #79c0ff; }
 .row .file-icon.html { color: #f0883e; }
 .row .file-icon.css { color: #56d364; }
 .row .file-icon.py { color: #388bfd; }
-.row .file-icon.folder { color: #8b949e; }
+.row .file-icon.folder { color: #8b93a1; }
 
 .split {
   background: var(--line-subtle);
@@ -834,9 +834,9 @@ button, input, select, textarea {
 }
 
 .btn-danger {
-  background: rgba(248, 81, 73, 0.15);
+  background: #3a1d22;
   color: var(--err);
-  border-color: rgba(248, 81, 73, 0.4);
+  border-color: #7a2f33;
 }
 .btn-danger:hover {
   background: var(--err);
@@ -873,8 +873,8 @@ button, input, select, textarea {
 }
 .msg.err {
   color: var(--err);
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  background: #2a1a1e;
+  border: 1px solid #5a2a2e;
 }
 
 /* Markdown styling in messages */
@@ -971,10 +971,10 @@ button, input, select, textarea {
 }
 
 /* Syntax tokens */
-.tok-kw { color: #ff7b72; font-weight: 500; }
+.tok-kw { color: #f0524f; font-weight: 500; }
 .tok-str { color: #a5d6ff; }
 .tok-num { color: #79c0ff; }
-.tok-com { color: #8b949e; font-style: italic; }
+.tok-com { color: #8b93a1; font-style: italic; }
 .tok-fn { color: #d2a8ff; }
 
 /* Collapsible Tool Cards */
@@ -1125,7 +1125,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
   max-height: 180px;
   overflow: hidden;
   display: flex;
@@ -1196,7 +1196,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1256,7 +1256,7 @@ button, input, select, textarea {
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 1px var(--line);
   z-index: 90;
   overflow: hidden;
 }
@@ -1297,22 +1297,27 @@ button, input, select, textarea {
 ::-webkit-scrollbar-thumb:hover { background: var(--mut); }
 
 /* ---- IDE extras ---- */
-.msg.ai code{background:#1e2430;padding:1px 5px;border-radius:4px;font:12px "JetBrains Mono",monospace}
-.msg.ai .code{margin:8px 0;border:1px solid #2a3140;border-radius:8px;overflow:hidden}
-.msg.ai .code-h{display:flex;justify-content:space-between;padding:4px 10px;background:#161b24;color:#7d8590;font-size:11px}
-.msg.ai .code-h .copy{background:none;border:0;color:#7d8590;cursor:pointer}.msg.ai .code-h .copy:hover{color:#fff}
-.msg.ai .code pre{margin:0;padding:10px;overflow:auto;background:#0e1117}.msg.ai .code code{background:none;padding:0}
-.msg.status{display:flex;align-items:center;gap:10px;color:#7d8590;background:transparent;padding:4px 2px}
-.msg.status .stop{margin-left:auto;background:#2a1b1e;color:#ff7b72;border:1px solid #5a2a30;border-radius:6px;padding:2px 10px;cursor:pointer}
-.spin{width:12px;height:12px;border:2px solid #2a3140;border-top-color:#58a6ff;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
-details.msg.tool{font:12px "JetBrains Mono",monospace;padding:4px 10px;color:#8b949e}details.msg.tool summary{cursor:pointer;list-style:none}
-details.msg.tool summary b{color:#58a6ff}details.msg.tool.bad summary b{color:#ff7b72}details.msg.tool pre{white-space:pre-wrap;margin:6px 0 2px;max-height:240px;overflow:auto;color:#c9d1d9}
-.msg.summary{border-color:#238636;color:#7ee787}
-#review-bar{display:flex;align-items:center;gap:8px;padding:5px 12px;background:#14202e;border-bottom:1px solid #1f3a5a;font-size:12px;color:#9ecbff}
+.msg.ai code{background:#1a1e24;padding:1px 5px;border-radius:4px;font:12px "JetBrains Mono",monospace}
+.msg.ai .code{margin:8px 0;border:1px solid #2a2f37;border-radius:8px;overflow:hidden}
+.msg.ai .code-h{display:flex;justify-content:space-between;padding:4px 10px;background:#14171c;color:#8b93a1;font-size:11px}
+.msg.ai .code-h .copy{background:none;border:0;color:#8b93a1;cursor:pointer}.msg.ai .code-h .copy:hover{color:#fff}
+.msg.ai .code pre{margin:0;padding:10px;overflow:auto;background:#0e1013}.msg.ai .code code{background:none;padding:0}
+.msg.status{display:flex;align-items:center;gap:10px;color:#8b93a1;background:transparent;padding:4px 2px}
+.msg.status .stop{margin-left:auto;background:#2a1a1e;color:#f0524f;border:1px solid #5a2a30;border-radius:6px;padding:2px 10px;cursor:pointer}
+.spin{width:12px;height:12px;border:2px solid #2a2f37;border-top-color:#4c8dff;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+details.msg.tool{font:12px "JetBrains Mono",monospace;padding:4px 10px;color:#8b93a1}details.msg.tool summary{cursor:pointer;list-style:none}
+details.msg.tool summary b{color:#4c8dff}details.msg.tool.bad summary b{color:#f0524f}details.msg.tool pre{white-space:pre-wrap;margin:6px 0 2px;max-height:240px;overflow:auto;color:#c9d1d9}
+.msg.summary{border-color:#34c26b;color:#34c26b}
+#review-bar{display:flex;align-items:center;gap:8px;padding:5px 12px;background:#16243d;border-bottom:1px solid #1f3a5a;font-size:12px;color:#9ecbff}
 #review-bar[hidden]{display:none}#review-bar .rb-s{flex:1}
-#review-bar button{background:#1b2a3d;border:1px solid #2b4a70;color:#cfe3ff;border-radius:6px;padding:2px 10px;cursor:pointer}
-#review-bar button.ok{background:#12351f;border-color:#238636;color:#7ee787}#review-bar button.danger{background:#35161a;border-color:#7a2a31;color:#ff9b94}
-#diff-wrap{position:absolute;inset:0;display:none;z-index:6;background:#0d1117}
-#inline-edit{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:min(560px,86%);display:flex;align-items:center;gap:8px;padding:8px 12px;background:#161b24;border:1px solid #58a6ff;border-radius:10px;box-shadow:0 12px 40px #000a;z-index:20}
-#inline-edit[hidden]{display:none}#inline-edit input{flex:1;background:transparent;border:0;outline:none;color:#e6edf3;font-size:13px}#inline-edit .ie-i{color:#58a6ff}#inline-edit .ie-s{color:#7d8590;font-size:11px}
-.ai-edit-flash{background:rgba(46,160,67,.18)}
+#review-bar button{background:#16243d;border:1px solid #2a4a80;color:#e8eaed;border-radius:6px;padding:2px 10px;cursor:pointer}
+#review-bar button.ok{background:#12351f;border-color:#34c26b;color:#34c26b}#review-bar button.danger{background:#35161a;border-color:#7a2a31;color:#ff9b94}
+#diff-wrap{position:absolute;inset:0;display:none;z-index:6;background:#0e1013}
+#inline-edit{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:min(560px,86%);display:flex;align-items:center;gap:8px;padding:8px 12px;background:#14171c;border:1px solid #4c8dff;border-radius:10px;box-shadow:0 12px 40px #000a;z-index:20}
+#inline-edit[hidden]{display:none}#inline-edit input{flex:1;background:transparent;border:0;outline:none;color:#e6edf3;font-size:13px}#inline-edit .ie-i{color:#4c8dff}#inline-edit .ie-s{color:#8b93a1;font-size:11px}
+.ai-edit-flash{background:#12351f}
+
+/* Prism Pro Ultra: flat, solid-color finish */
+.brand span:first-of-type { font-weight: 700; letter-spacing: 0.01em; }
+.brand .badge { margin-left: 8px; padding: 1px 7px; border-radius: 3px; background: var(--acc); color: #0e1013; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+button, .btn { transition: background-color 0.12s, border-color 0.12s; }
