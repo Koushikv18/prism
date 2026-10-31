@@ -132,7 +132,7 @@ function auditProject(root) {
   return 'Audit of ' + files.length + ' files: ' + c('high') + ' high, ' + c('medium') + ' medium, ' + c('low') + ' low.\n' + (out.slice(0, 40).map(i => '[' + i.sev + '] ' + i.msg).join('\n') || 'No issues found.');
 }
 
-const ALIASES = { create_file: 'write_file', write: 'write_file', edit_file: 'write_file', save_file: 'write_file', update_file: 'write_file', cat: 'read_file', open_file: 'read_file', view_file: 'read_file', ls: 'list_dir', list_files: 'list_dir', list_directory: 'list_dir', search: 'code_search', grep: 'code_search', search_code: 'code_search', shell: 'run_command', bash: 'run_command', exec: 'run_command', run: 'run_command', terminal: 'run_command' };
+const ALIASES = { create_file: 'write_file', write: 'write_file', save_file: 'write_file', update_file: 'write_file', cat: 'read_file', open_file: 'read_file', view_file: 'read_file', ls: 'list_dir', list_files: 'list_dir', list_directory: 'list_dir', search: 'code_search', grep: 'code_search', search_code: 'code_search', shell: 'run_command', bash: 'run_command', exec: 'run_command', run: 'run_command', terminal: 'run_command' };
 const ARG_ALIASES = { file_path: 'path', filepath: 'path', filename: 'path', file: 'path', directory: 'path', dir_path: 'path', contents: 'content', text: 'content', code: 'content', body: 'content', cmd: 'command', shell_command: 'command', regex: 'query', pattern: 'query', search: 'query' };
 function normalizeCall(name, input) {
   const n = ALIASES[name] || name, out = {};
