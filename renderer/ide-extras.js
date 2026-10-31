@@ -156,6 +156,9 @@
   }
   async function fileChanged(ev) {
     if (ev.before === undefined) { refresh(); return; } // directory-level change (scaffold)
+    if (ev.before === null && !ev.isNew) { // restore/undo done by the agent itself: just reload, nothing to review
+      await refresh(); const t0 = tabs.get(ev.path); if (t0) { const txt = await prism.read(ev.path).catch(() => null); if (txt !== null) { t0.saved = txt; t0.model.setValue(txt); } } return;
+    }
     touched.add(ev.path);
     const prev = changes.get(ev.path); changes.set(ev.path, { before: prev ? prev.before : ev.before, isNew: prev ? prev.isNew : !!ev.isNew });
     await refresh();
