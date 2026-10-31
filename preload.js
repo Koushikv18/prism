@@ -32,6 +32,13 @@ const api = {
     ipcRenderer.on('ollama:install-log', fn);
     return () => ipcRenderer.removeListener('ollama:install-log', fn);
   },
+  deletePath: rel => ipcRenderer.invoke('delete-path', rel),
+  termRun: (id, cmd) => ipcRenderer.invoke('term-run', id, cmd),
+  termKill: id => ipcRenderer.invoke('term-kill', id),
+  termStdin: (id, d) => ipcRenderer.invoke('term-stdin', id, d),
+  termReset: () => ipcRenderer.invoke('term-reset'),
+  onTermData: cb => ipcRenderer.on('term-data', (_, d) => cb(d)),
+  onTermExit: cb => ipcRenderer.on('term-exit', (_, d) => cb(d)),
   onAgent: cb => ipcRenderer.on('agent-event', (_, ev) => cb(ev)),
   onAgentEvent: cb => ipcRenderer.on('agent-event', (_, ev) => cb(ev)),
 };

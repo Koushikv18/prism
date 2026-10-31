@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const indexer = require('./indexer');
 const { exec, execFile } = require('child_process');
 const WORKSPACES = path.join(os.homedir(), '.prism', 'workspaces');
 const GH = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+?(\.git)?\/?$/;
@@ -21,7 +22,7 @@ const TOOLS = [
   { name: 'edit_file', description: 'Replace one exact, unique snippet in a file (safer than rewriting the whole file).', input_schema: { type: 'object', properties: { path: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['path', 'old', 'new'] } },
   { name: 'analyze_repo', description: 'Map a repo: file counts, languages, manifests, entry points, top dependencies, biggest files, license.', input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } },
   { name: 'clone_reference', description: 'Shallow-clone a public GitHub repo into .prism/refs/<name> inside the workspace as a read-only reference to study (does not change the active workspace).', input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } },
-  { name: 'semantic_search', description: 'Find the most relevant code chunks for a natural-language query (TF-IDF ranking across the workspace).', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
+  { name: 'semantic_search', description: 'Find the most relevant code in the workspace for a natural-language query: BM25 keyword ranking, re-ranked semantically when the nomic-embed-text model is installed. Returns ranked snippets with file:line. Use FIRST when exploring an unfamiliar codebase or locating where a feature lives.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
   { name: 'undo_last_change', description: 'Undo the most recent file write/edit made by the agent (checkpoint restore).', input_schema: { type: 'object', properties: {} } },
   { name: 'learn', description: 'Save one short, durable lesson to global learnings (loaded in every future session). Call after finishing a task.', input_schema: { type: 'object', properties: { lesson: { type: 'string' } }, required: ['lesson'] } },
   { name: 'remember', description: 'Save a durable project note to PRISM.md (re-read every session).', input_schema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] } },
@@ -35,6 +36,7 @@ const TOOLS = [
   { name: 'scaffold', description: 'Copy a starter template into the workspace. Templates: creative-site (Vite + three.js + GSAP + Lenis), agent-starter (tool-using Gemini agent).', input_schema: { type: 'object', properties: { template: { type: 'string' }, dir: { type: 'string' } }, required: ['template', 'dir'] } },
   { name: 'tech_radar', description: 'Get the daily-refreshed snapshot of current web/AI tooling: latest npm versions, new trending GitHub repos, Hacker News discussion. Call before choosing libraries.', input_schema: { type: 'object', properties: { refresh: { type: 'boolean' } } } },
   { name: 'optimize_audit', description: 'Static audit of the workspace for performance (heavy images/JS/fonts/models, render-blocking scripts, CLS), accessibility and SEO issues, sorted by severity. Run after building any website and fix high items.', input_schema: { type: 'object', properties: {} } },
+  { name: 'repo_map', description: 'Overview of the workspace: every source file with its top-level functions/classes. Call once at the start of a big task.', input_schema: { type: 'object', properties: {} } },
   { name: 'run_command', description: 'Run a shell command in the workspace root (user must approve).', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } },
   { name: 'get_ide_state', description: 'Get the current IDE state: open workspace folder, active file in editor, cursor line, open tabs, and selected code.', input_schema: { type: 'object', properties: {} } },
 ];
@@ -132,7 +134,7 @@ function auditProject(root) {
   return 'Audit of ' + files.length + ' files: ' + c('high') + ' high, ' + c('medium') + ' medium, ' + c('low') + ' low.\n' + (out.slice(0, 40).map(i => '[' + i.sev + '] ' + i.msg).join('\n') || 'No issues found.');
 }
 
-const ALIASES = { create_file: 'write_file', write: 'write_file', save_file: 'write_file', update_file: 'write_file', cat: 'read_file', open_file: 'read_file', view_file: 'read_file', ls: 'list_dir', list_files: 'list_dir', list_directory: 'list_dir', search: 'code_search', grep: 'code_search', search_code: 'code_search', shell: 'run_command', bash: 'run_command', exec: 'run_command', run: 'run_command', terminal: 'run_command' };
+const ALIASES = { create_file: 'write_file', write: 'write_file', save_file: 'write_file', update_file: 'write_file', cat: 'read_file', open_file: 'read_file', view_file: 'read_file', ls: 'list_dir', list_files: 'list_dir', list_directory: 'list_dir', grep: 'code_search', search_code: 'code_search', find: 'semantic_search', search: 'semantic_search', search_codebase: 'semantic_search', shell: 'run_command', bash: 'run_command', exec: 'run_command', run: 'run_command', terminal: 'run_command' };
 const ARG_ALIASES = { file_path: 'path', filepath: 'path', filename: 'path', file: 'path', directory: 'path', dir_path: 'path', contents: 'content', text: 'content', code: 'content', body: 'content', cmd: 'command', shell_command: 'command', regex: 'query', pattern: 'query', search: 'query' };
 function normalizeCall(name, input) {
   const n = ALIASES[name] || name, out = {};
@@ -213,7 +215,7 @@ async function runTool(name, input, ctx) {
       ctx.emit({ type: 'file_changed', path: input.path, before: t, isNew: false }); return 'Edited ' + input.path + verify(p);
     }
     if (name === 'analyze_repo') return analyze(ctx.root, input.path);
-    if (name === 'semantic_search') return semSearch(safe(ctx.root, '.'), String(input.query || ''));
+    if (name === 'semantic_search') return await indexer.search(safe(ctx.root, '.'), String(input.query || ''));
     if (name === 'undo_last_change') {
       const st = readCP(), c = st.pop(); if (!c) return 'Nothing to undo.';
       const p = safe(ctx.root, path.relative(ctx.root, c.p)); c.old === null ? fs.rmSync(p, { force: true }) : fs.writeFileSync(p, c.old);
@@ -262,6 +264,7 @@ async function runTool(name, input, ctx) {
       const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (hits.length >= 200) return; if (SKIP.has(e.name)) continue; const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else { let t; try { t = fs.readFileSync(f, 'utf8'); } catch { continue; } if (t.includes('\0')) continue; t.split('\n').forEach((l, i) => { if (hits.length < 200 && re.test(l)) hits.push(path.relative(ctx.root, f) + ':' + (i + 1) + ': ' + l.trim().slice(0, 160)); }); } } };
       walk(safe(ctx.root, '.')); return hits.join('\n') || 'No matches.';
     }
+    if (name === 'repo_map') return indexer.repoMap(safe(ctx.root, '.'));
     if (name === 'tech_radar') return formatRadar(await refreshRadar(!!input.refresh));
     if (name === 'optimize_audit') return auditProject(safe(ctx.root, '.'));
     if (name === 'load_skill') {
@@ -326,6 +329,7 @@ function buildSystemPrompt(root, context = {}) {
   if (root) {
     s += `\n• Open Workspace Folder: ${root}`;
     s += `\n• Workspace Name: ${path.basename(root)}`;
+    s += '\n• Exploring: call repo_map once for an overview, then semantic_search to locate code by meaning, then read_file. Do not guess file contents or paths.';
   } else {
     s += '\n• Open Workspace: None open yet. Prompt the user to click "Open Folder" or ask you to git_clone a repository.';
   }
@@ -345,6 +349,10 @@ function buildSystemPrompt(root, context = {}) {
   if (context.topFiles && context.topFiles.length) {
     s += `\n• Workspace Files: ${context.topFiles.slice(0, 35).join(', ')}`;
   }
+  if (context.problems && context.problems.length) s += `\n• Editor problems (errors the user can see right now):\n${context.problems.map(p => '  - ' + p).join('\n')}`;
+  if (context.terminalTail) s += `\n• Recent terminal output:\n\`\`\`\n${context.terminalTail}\n\`\`\``;
+  if (context.attached && context.attached.length) s += '\n• Files the user attached with @ (full content):\n' + context.attached.map(f => `--- ${f.path} ---\n${f.content}`).join('\n');
+  s += '\n• After changing code, verify it (run tests, a build or a type check with run_command) and fix failures before reporting done.';
   s += '\n===========================\n';
   s += 'Always use this IDE context to know what project and file the user is working on. When asked "what folder do I have opened", "what file am I in", or "look at this code", answer accurately using this context.';
   return s;
@@ -383,7 +391,7 @@ async function runClaude({ apiKey, model, messages, root, context, approve, emit
   return messages;
 }
 
-const OLLAMA = process.env.OLLAMA_HOST || 'http://localhost:11434';
+const OLLAMA = process.env.OLLAMA_HOST ? (/^https?:/.test(process.env.OLLAMA_HOST) ? process.env.OLLAMA_HOST : 'http://' + process.env.OLLAMA_HOST) : 'http://localhost:11434';
 
 async function listOllamaModels() {
   try {

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { exec, spawn } = require('child_process');
 const { runAgent, listOllamaModels, refreshRadar, formatRadar, inlineEdit, complete } = require('./agent');
@@ -188,8 +189,45 @@ ipcMain.handle('list', (_, rel) => fs.readdirSync(inRoot(rel), { withFileTypes: 
 
 ipcMain.handle('read', (_, rel) => fs.readFileSync(inRoot(rel), 'utf8'));
 ipcMain.handle('write', (_, rel, text) => { fs.writeFileSync(inRoot(rel), text); return true; });
+ipcMain.handle('delete-path', (_, rel) => { fs.rmSync(inRoot(rel), { force: true }); return true; });
 ipcMain.handle('term', (_, cmd) => new Promise(res => exec(cmd, { cwd: root || undefined, timeout: 120000 },
   (err, o, e) => res((o || '') + (e || '') + (err ? `\n[exit ${err.code}]` : '')))));
+
+// ---- Streaming terminal: live output, persistent cwd, stdin, Ctrl+C, long-running dev servers ----
+const termProcs = new Map();
+let termCwd = null;
+const MARK = '__PRISM_CWD__';
+ipcMain.handle('term-run', (_, id, cmd) => {
+  const cwd = termCwd && fs.existsSync(termCwd) ? termCwd : (root || os.homedir());
+  const win32 = process.platform === 'win32';
+  const script = win32 ? `${cmd} & echo.& echo ${MARK}%cd%` : `${cmd}\n__rc=$?\nprintf '\\n${MARK}%s\\n' "$PWD"\nexit $__rc`;
+  const child = win32 ? spawn('cmd.exe', ['/d', '/s', '/c', script], { cwd, windowsHide: true, env: { ...process.env, FORCE_COLOR: '1' } })
+    : spawn(process.env.SHELL || '/bin/sh', ['-c', script], { cwd, detached: true, env: { ...process.env, FORCE_COLOR: '1', TERM: 'xterm-256color' } });
+  termProcs.set(id, child);
+  let tail = '';
+  const out = d => {
+    let s = d.toString();
+    tail = (tail + s).slice(-300);
+    s = s.replace(new RegExp('\\r?\\n?' + MARK + '.*(\\r?\\n)?', 'g'), '');
+    if (s && win && !win.isDestroyed()) win.webContents.send('term-data', { id, data: s });
+  };
+  child.stdout.on('data', out); child.stderr.on('data', out);
+  child.on('error', e => { if (win && !win.isDestroyed()) win.webContents.send('term-data', { id, data: 'Error: ' + e.message + '\n' }); });
+  child.on('close', code => {
+    termProcs.delete(id);
+    const m = tail.match(new RegExp(MARK + '(.*)')); if (m && m[1].trim()) termCwd = m[1].trim();
+    if (win && !win.isDestroyed()) win.webContents.send('term-exit', { id, code, cwd: termCwd || cwd });
+  });
+  return true;
+});
+ipcMain.handle('term-kill', (_, id) => {
+  const c = termProcs.get(id); if (!c) return false;
+  try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(c.pid), '/T', '/F']) : process.kill(-c.pid, 'SIGTERM'); } catch { try { c.kill(); } catch {} }
+  return true;
+});
+ipcMain.handle('term-stdin', (_, id, data) => { const c = termProcs.get(id); if (c && c.stdin.writable) c.stdin.write(data); return !!c; });
+ipcMain.handle('term-reset', () => { termCwd = null; return true; });
+app.on('before-quit', () => { for (const c of termProcs.values()) { try { process.platform === 'win32' ? c.kill() : process.kill(-c.pid, 'SIGTERM'); } catch {} } });
 
 ipcMain.handle('has-key', (_, p) => !!getKey(p));
 ipcMain.handle('set-key', (_, k, p) => { fs.writeFileSync(keyPath(p), safeStorage.encryptString(k)); return true; });

@@ -513,7 +513,10 @@ function getIdeContext() {
     selectedCode: selText || null,
     openTabs: [...tabs.keys()],
     dirtyTabs: [...tabs.entries()].filter(([_, v]) => v.dirty).map(([k]) => k),
-    topFiles: (typeof allFiles !== 'undefined' && Array.isArray(allFiles)) ? allFiles.slice(0, 35) : []
+    topFiles: (typeof allFiles !== 'undefined' && Array.isArray(allFiles)) ? allFiles.slice(0, 35) : [],
+    problems: (typeof monaco !== 'undefined' ? monaco.editor.getModelMarkers({}) : []).filter(m => m.severity >= 4).slice(0, 15)
+      .map(m => `${m.resource.path.replace(/^\//, '')}:${m.startLineNumber} ${m.message}`),
+    terminalTail: window.prismTerm ? (() => { const b = window.prismTerm.buffer.active, out = []; for (let i = Math.max(0, b.length - 40); i < b.length; i++) { const l = b.getLine(i); if (l) out.push(l.translateToString(true)); } return out.join('\n').trim().slice(-1500); })() : ''
   };
 }
 
@@ -526,7 +529,7 @@ $('prompt').onkeydown = async e => {
   log(t, 'me');
   await saveAll();
   PrismChat.start();
-  let r; try { r = await prism.agent(t, getIdeContext()); } catch (err) { r = { error: err.message }; }
+  let r; try { const cx = getIdeContext(); cx.attached = await PrismChat.attach(t); r = await prism.agent(t, cx); } catch (err) { r = { error: err.message }; }
   PrismChat.end(r);
   refresh();
 };

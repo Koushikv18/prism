@@ -33,7 +33,7 @@
       if (r && r.error) {
         const stopped = /stopped by user/i.test(r.error);
         add(stopped ? 'tool' : 'err', esc(stopped ? 'Stopped.' : r.error));
-      } else if (touched.size) add('ai summary', '✦ Changed ' + touched.size + ' file' + (touched.size > 1 ? 's' : '') + ': ' + [...touched].map(esc).join(', ') + '. Review each change in the editor (View diff · Keep · Revert).');
+      } else if (touched.size) await runCard();
     },
     handle(ev) {
       if (ev.type === 'delta') { if (!live) { live = add('ai', ''); liveText = ''; } liveText += ev.text; live.innerHTML = md(liveText); scroll(); }
@@ -53,7 +53,75 @@
       }
     },
   };
+  /* @file mentions: attach file contents to the request, with autocomplete popup */
+  PrismChat.attach = async text => {
+    const out = [];
+    for (const m of String(text).matchAll(/(^|\s)@([\w@./\\-]+)/g)) {
+      const p = m[2].replace(/[.,;:)]+$/, '');
+      if (out.length >= 5 || out.some(o => o.path === p) || !(typeof allFiles !== 'undefined' && allFiles.includes(p))) continue;
+      try { out.push({ path: p, content: (await prism.read(p)).slice(0, 12000) }); } catch {}
+    }
+    return out;
+  };
+  const pop = document.createElement('div'); pop.id = 'at-pop'; pop.hidden = true; $('prompt').parentNode.append(pop);
+  let popItems = [], popSel = 0;
+  const drawPop = () => { pop.innerHTML = popItems.map((f, i) => `<div class="at-i${i === popSel ? ' on' : ''}" data-i="${i}">${esc(f)}</div>`).join(''); pop.hidden = !popItems.length; };
+  const pick = i => {
+    const ta = $('prompt'), pos = ta.selectionStart, before = ta.value.slice(0, pos).replace(/@[\w@./\\-]*$/, '@' + popItems[i] + ' ');
+    ta.value = before + ta.value.slice(pos); ta.selectionStart = ta.selectionEnd = before.length; popItems = []; drawPop(); ta.focus();
+  };
+  $('prompt').addEventListener('input', () => {
+    const ta = $('prompt'), m = ta.value.slice(0, ta.selectionStart).match(/(^|\s)@([\w@./\\-]*)$/);
+    if (!m || typeof allFiles === 'undefined') { popItems = []; return drawPop(); }
+    const q = m[2].toLowerCase();
+    popItems = allFiles.filter(f => f.toLowerCase().includes(q)).sort((a, b) => (a.toLowerCase().split('/').pop().startsWith(q) ? 0 : 1) - (b.toLowerCase().split('/').pop().startsWith(q) ? 0 : 1) || a.length - b.length).slice(0, 8); popSel = 0; drawPop();
+  });
+  pop.addEventListener('mousedown', e => { const i = e.target.dataset && e.target.dataset.i; if (i !== undefined) { e.preventDefault(); pick(+i); } });
+  window.addEventListener('keydown', e => {
+    if (e.target !== $('prompt') || pop.hidden) return;
+    if (e.key === 'ArrowDown') { popSel = (popSel + 1) % popItems.length; drawPop(); e.preventDefault(); e.stopImmediatePropagation(); }
+    else if (e.key === 'ArrowUp') { popSel = (popSel - 1 + popItems.length) % popItems.length; drawPop(); e.preventDefault(); e.stopImmediatePropagation(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { pick(popSel); e.preventDefault(); e.stopImmediatePropagation(); }
+    else if (e.key === 'Escape') { popItems = []; drawPop(); e.stopImmediatePropagation(); }
+  }, true);
+
   window.PrismChat = PrismChat;
+
+  /* ---------- whole-run review card: per-file +/- counts, Keep all, Undo run ---------- */
+  function lineDiff(a, b) {
+    const A = a.replace(/\n$/, '').split('\n'), B = b.replace(/\n$/, '').split('\n');
+    if (A.length * B.length > 4e6) { const sa = new Set(A), sb = new Set(B); return { a: B.filter(l => !sa.has(l)).length, r: A.filter(l => !sb.has(l)).length }; }
+    let prev = new Array(B.length + 1).fill(0);
+    for (let i = 1; i <= A.length; i++) { const cur = [0]; for (let j = 1; j <= B.length; j++) cur[j] = A[i - 1] === B[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]); prev = cur; }
+    const lcs = prev[B.length]; return { a: B.length - lcs, r: A.length - lcs };
+  }
+  async function runCard() {
+    const rows = [];
+    for (const p of touched) {
+      const c = changes.get(p); if (!c) continue;
+      let after = ''; try { after = await prism.read(p); } catch {}
+      rows.push({ p, c, ...(c.isNew ? { a: after.split('\n').length, r: 0 } : lineDiff(c.before || '', after)) });
+    }
+    if (!rows.length) return;
+    const el = add('ai summary', '');
+    el.innerHTML = `<div class="rc-h"><b>✦ ${rows.length} file${rows.length > 1 ? 's' : ''} changed</b><span class="rc-b"><button data-a="keep" class="ok">Keep all</button><button data-a="undo" class="danger">Undo run</button></span></div>` +
+      rows.map(r => `<div class="rc-r" data-p="${esc(r.p)}"><span class="rc-p">${esc(r.p)}</span>${r.c.isNew ? '<em>new</em>' : ''}<span class="ad">+${r.a}</span><span class="rm">−${r.r}</span></div>`).join('');
+    el.onclick = async e => {
+      const row = e.target.closest('.rc-r');
+      if (row) { await openFile(row.dataset.p); show(row.dataset.p); updateBar(); return; }
+      const a = e.target.dataset && e.target.dataset.a; if (!a) return;
+      if (a === 'keep') { rows.forEach(r => changes.delete(r.p)); updateBar(); el.querySelector('.rc-b').textContent = 'Kept'; }
+      if (a === 'undo') {
+        for (const r of rows) {
+          if (!changes.has(r.p)) continue;
+          if (r.c.isNew) { if (tabs.has(r.p)) closeTab(r.p); await prism.deletePath(r.p); }
+          else { await prism.write(r.p, r.c.before); const t = tabs.get(r.p); if (t) { t.saved = r.c.before; t.model.setValue(r.c.before); } }
+          changes.delete(r.p);
+        }
+        updateBar(); await refresh(); el.querySelector('.rc-b').textContent = 'Run undone';
+      }
+    };
+  }
 
   /* ---------- review of agent edits ---------- */
   const changes = new Map(); let diffEd = null, diffOrig = null, bar = null;

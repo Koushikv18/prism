@@ -68,3 +68,22 @@ Quality depends mostly on the model you run. A 14B local coder handles small and
 
 ## Safety
 Shell commands and repo clones need your approval. File access is locked to the open workspace. Never commit API keys or tokens.
+
+## Using Prism like Cursor (free, local)
+1. Install [Ollama](https://ollama.com) and run `ollama pull qwen2.5-coder:7b` (best balance of tool-use and speed; use `qwen2.5-coder:14b`+ if you have 16 GB RAM). Optional faster autocomplete: `ollama pull qwen2.5-coder:1.5b`.
+2. `npm install && npm start`, open a folder, and ask the agent for a task in the right panel.
+- **Agent**: streams its answer live, shows every tool call (expand for output), runs commands only after you approve, and has a Stop button. If the model describes instead of acting, Prism pushes it to use its tools; it accepts common tool-name variants from small models.
+- **Review changes**: every file the agent writes opens in the editor with a bar: **View diff**, **Keep**, **Revert**.
+- **Ctrl+K**: select code (or place the cursor on a line), describe the edit, press Enter. Undo with Ctrl+Z.
+- **Autocomplete**: grey ghost text while you type (local model, Tab to accept). Disable with `settings.autocomplete = false`.
+- **IntelliSense**: TypeScript/JavaScript/CSS/JSON diagnostics and completions via Monaco workers.
+- The model context is 16K tokens; very small models (under 7B) may still struggle with multi-file tasks, so switch to Gemini or Claude from the provider menu for those.
+
+## Codebase awareness, terminal and safety nets
+- **Codebase index**: the agent has `repo_map` (every file with its functions/classes) and `semantic_search` (BM25 keyword ranking, plus semantic re-ranking if you run `ollama pull nomic-embed-text`). It rebuilds automatically when files change.
+- **IDE context**: every request includes the active file, cursor, selection, open and unsaved tabs, current editor errors and recent terminal output. Type `@` in the chat to attach files.
+- **Streaming terminal**: live colour output, working dev servers, `cd` that sticks, typed input to running programs, `Ctrl+C` to stop, `Ctrl+L` to clear.
+- **Run review**: after each agent run you get a card listing changed files with +/- line counts, **Keep all** and **Undo run** (restores edited files, deletes created ones). Changes made by shell commands are not covered by Undo; use git for those.
+
+## Tests
+`npm test` runs unit tests (index, tools, safety). `npm run test:e2e` launches the real app against a scripted fake Ollama and checks the whole UI flow (needs `xvfb` on headless Linux).
